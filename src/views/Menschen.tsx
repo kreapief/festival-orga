@@ -121,7 +121,7 @@ function Invites({ onClose }: { onClose: () => void }) {
             {gewerke.filter(x => x.kind !== 'orga').map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
           <div className="row"><button className="btn sm" onClick={copyGewerk}><Icon name="copy" size={18} />Kopieren</button><button className="btn sm" onClick={qrGewerk}>QR-Code zeigen</button></div></div>
       </section>
-      {isAdmin && <section className="stack"><h3>Crew</h3><p className="small muted">Nur an Leute geben, die Crew-Rechte bekommen sollen.</p>{row(byAccess('crew'), 'Crew einladen', 'Wer diesen Code scannt, ist Crew und in der Gruppe Crew. Nur persönlich zeigen.')}</section>}
+      {isAdmin && <section className="stack"><h3>Crew</h3><p className="small muted">Nur an Leute geben, die Crew-Rechte bekommen sollen.</p>{row(byAccess('crew'), 'Crew einladen', 'Wer diesen Code scannt, ist Crew und in der Gruppe Orga. Nur persönlich zeigen.')}</section>}
       <button className="btn" onClick={onClose}>Fertig</button>
       {qr && <QrSheet {...qr} onClose={() => setQr(null)} />}
     </Sheet>

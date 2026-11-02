@@ -20,7 +20,7 @@ So kann man ohne E-Mail und ohne Passwort beitreten. Wer reinkommt, entscheidet 
 ## 3. Datenbank anlegen
 
 1. **SQL Editor → New query** öffnen.
-2. Den kompletten Inhalt von `supabase/migrations/0001_grundgeruest.sql` einfügen und auf **Run** klicken. Danach genauso mit `0002_schichten_lineup_kalender.sql`, `0003_orga_team_automatisch.sql` und `0004_crew_gruppe.sql`, immer in dieser Reihenfolge. (Oder gleich `supabase/setup_komplett.sql`, da stehen alle vier drin.)
+2. Den kompletten Inhalt von `supabase/migrations/0001_grundgeruest.sql` einfügen und auf **Run** klicken. Danach genauso mit `0002_schichten_lineup_kalender.sql`, `0003_orga_team_automatisch.sql`, `0004_crew_gruppe.sql` und `0005_gruppe_orga.sql`, immer in dieser Reihenfolge. (Oder gleich `supabase/setup_komplett.sql`, da stehen alle fünf drin.)
 3. Eine neue Abfrage öffnen, den Namen eures Kollektivs einsetzen und ausführen:
 
    ```sql
@@ -29,7 +29,7 @@ So kann man ohne E-Mail und ohne Passwort beitreten. Wer reinkommt, entscheidet 
 
    Heraus kommen drei Codes: `admin`, `crew` und `helfer`. **Den Admin-Code nur selbst benutzen.** Er gilt genau einmal.
 
-Dabei werden auch eure Bereiche angelegt: Crew, Barschichten, Aufbau, Designs, Deko, Essen, Social Media, Spiele Olympiade, Glücksrad, Shuttle, DJs und Awareness.
+Dabei werden auch eure Bereiche angelegt: Orga, Barschichten, Aufbau, Designs, Deko, Essen, Social Media, Spiele Olympiade, Glücksrad, Shuttle, DJs und Awareness.
 
 ## 4. App mit Supabase verbinden
 
