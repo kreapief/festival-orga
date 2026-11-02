@@ -3,7 +3,7 @@ import { useTeam } from '../lib/team'
 import { db, errorText } from '../lib/supabase'
 import { appLink } from '../lib/route'
 import { Avatar, Icon, Sheet, copyText, toast } from '../lib/ui'
-import { ACCESS_LABEL, isLeadAccess, type Access, type Invite, type Profile } from '../lib/types'
+import { ACCESS_LABEL, type Access, type Invite, type Profile } from '../lib/types'
 import { HelferQrButton, QrSheet } from './InviteQr'
 
 export function Menschen() {
@@ -63,7 +63,7 @@ function PersonSheet({ p, onClose }: { p: Profile; onClose: () => void }) {
       <div className="field"><span className="flabel">Bereiche</span>
         <div className="pick">{gewerke.map(g => {
           const on = inGewerk(g.id, p.id)
-          const ok = canManage(g.id) && !(g.kind === 'orga' && !isLeadAccess(current.access))
+          const ok = canManage(g.id)
           return <button type="button" key={g.id} aria-pressed={on} disabled={!ok} onClick={() => toggleGewerk(g.id, on)}><span className="box" aria-hidden="true">{on ? '✓' : ''}</span>{g.name}</button>
         })}</div></div>
       <div className="field"><span className="flabel">Neues Handy?</span>
@@ -121,7 +121,7 @@ function Invites({ onClose }: { onClose: () => void }) {
             {gewerke.filter(x => x.kind !== 'orga').map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
           <div className="row"><button className="btn sm" onClick={copyGewerk}><Icon name="copy" size={18} />Kopieren</button><button className="btn sm" onClick={qrGewerk}>QR-Code zeigen</button></div></div>
       </section>
-      {isAdmin && <section className="stack"><h3>Crew</h3><p className="small muted">Nur an Leute geben, die Crew-Rechte bekommen sollen.</p>{row(byAccess('crew'), 'Crew einladen', 'Wer diesen Code scannt, ist Crew und im Orga-Team. Nur persönlich zeigen.')}</section>}
+      {isAdmin && <section className="stack"><h3>Crew</h3><p className="small muted">Nur an Leute geben, die Crew-Rechte bekommen sollen.</p>{row(byAccess('crew'), 'Crew einladen', 'Wer diesen Code scannt, ist Crew und in der Gruppe Crew. Nur persönlich zeigen.')}</section>}
       <button className="btn" onClick={onClose}>Fertig</button>
       {qr && <QrSheet {...qr} onClose={() => setQr(null)} />}
     </Sheet>

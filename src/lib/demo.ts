@@ -10,7 +10,7 @@ const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 const tomorrow = new Date(Date.now() + 864e5)
 
 const C = 'c1'
-const G = ['Orga', 'Barschichten', 'Aufbau', 'Designs', 'Deko', 'Essen', 'Social Media', 'Spiele Olympiade', 'Glücksrad', 'Shuttle', 'DJs', 'Awareness']
+const G = ['Crew', 'Barschichten', 'Aufbau', 'Designs', 'Deko', 'Essen', 'Social Media', 'Spiele Olympiade', 'Glücksrad', 'Shuttle', 'DJs', 'Awareness']
 const gid = (name: string) => 'g' + G.indexOf(name)
 const P = (n: number, name: string, access: string, extra: Row = {}) =>
   ({ id: 'p' + n, collective_id: C, user_id: 'u' + n, name, access, photo_url: null, act_name: null, act_genre: null, ...extra })
@@ -19,8 +19,8 @@ const db: Record<string, Row[]> = {
   collectives: [{ id: C, name: 'Beispiel-Kollektiv', fest_start: iso(tomorrow), fest_days: 3 }],
   profiles: [P(1, 'Alex Beispiel', 'admin'), P(2, 'Sam Muster', 'crew'), P(3, 'Jo Testperson', 'helfer'),
     P(4, 'Kim Platzhalter', 'helfer', { act_genre: 'Techno' }), P(5, 'Lou Skizze', 'helfer')],
-  gewerke: G.map((name, i) => ({ id: 'g' + i, name, kind: name === 'Orga' ? 'orga' : name === 'DJs' ? 'djs' : null, sort: i })),
-  gewerk_members: [{ gewerk_id: gid('Orga'), profile_id: 'p1' }, { gewerk_id: gid('Barschichten'), profile_id: 'p2' }, { gewerk_id: gid('Barschichten'), profile_id: 'p3' },
+  gewerke: G.map((name, i) => ({ id: 'g' + i, name, kind: name === 'Crew' ? 'orga' : name === 'DJs' ? 'djs' : null, sort: i })),
+  gewerk_members: [{ gewerk_id: gid('Crew'), profile_id: 'p1' }, { gewerk_id: gid('Barschichten'), profile_id: 'p2' }, { gewerk_id: gid('Barschichten'), profile_id: 'p3' },
     { gewerk_id: gid('DJs'), profile_id: 'p4' }, { gewerk_id: gid('Barschichten'), profile_id: 'p5' }],
   invites: [{ id: 'i1', code: 'CREWDEMO', access: 'crew', gewerk_id: null, active: true }, { id: 'i2', code: 'HELFDEMO', access: 'helfer', gewerk_id: null, active: true }],
   tasks: [
