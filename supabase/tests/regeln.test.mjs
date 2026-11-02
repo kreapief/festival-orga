@@ -55,6 +55,10 @@ await expectError(() => as(U(3), () => q('select * from public.join_with_code($1
 await expectError(() => as(U(4), () => q('select * from public.join_with_code($1, $2)', ['FALSCH12', 'X'])), 'Falscher Code wird abgelehnt')
 
 const g = Object.fromEntries((await q('select name, id from public.gewerke')).map(r => [r.name, r.id]))
+const inOrga = async id => (await q("select 1 from public.gewerk_members gm join public.gewerke g on g.id = gm.gewerk_id where gm.profile_id = $1 and g.kind = 'orga'", [id])).length === 1
+ok(await inOrga(admin.id), 'Admin ist über den Link automatisch im Orga-Team')
+ok(await inOrga(crew.id), 'Crew ist über den Link automatisch im Orga-Team')
+ok(!(await inOrga(helfer.id)), 'Helfer:in kommt nicht ins Orga-Team')
 // Crew ins Bar-Team, dann Bar-Link
 await as(U(1), () => q('insert into public.gewerk_members values ($1, $2)', [g.Barschichten, crew.id]))
 const barCode = (await as(U(2), () => q('select public.gewerk_invite($1) c', [g.Barschichten])))[0].c
@@ -114,6 +118,13 @@ await expectError(() => as(U(4), () => q('select public.claim_task($1)', [tOffen
 await as(U(4), () => q('select public.claim_task($1)', [tOffenBar]))
 ok((await q('select claimed from public.task_assignees where task_id = $1 and profile_id = $2', [tOffenBar, barHelfer.id]))[0]?.claimed, 'Lou übernimmt offene Bar-Aufgabe')
 await expectError(() => as(U(1), () => q('select public.claim_task($1)', [tOffenBar])), 'Vergebene Aufgabe kann man nicht übernehmen')
+
+console.log('Zugang ändern und Orga-Team')
+await as(U(1), () => q("select public.set_access($1, 'crew')", [barHelfer.id]))
+ok(await inOrga(barHelfer.id), 'Wer zur Crew wird, kommt ins Orga-Team')
+await as(U(1), () => q("select public.set_access($1, 'helfer')", [barHelfer.id]))
+ok(!(await inOrga(barHelfer.id)), 'Wer wieder Helfer:in wird, verlässt das Orga-Team')
+ok((await q('select 1 from public.gewerk_members where profile_id = $1 and gewerk_id = $2', [barHelfer.id, g.Barschichten])).length === 1, 'Andere Bereiche bleiben dabei unberührt')
 
 console.log('Wiederanmelden')
 await expectError(() => as(U(3), () => q('select public.create_relogin_link($1)', [helfer.id])), 'Helfer:in kann keine Wiederanmelde-Links erzeugen')

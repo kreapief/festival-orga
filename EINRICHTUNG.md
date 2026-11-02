@@ -20,7 +20,7 @@ So kann man ohne E-Mail und ohne Passwort beitreten. Wer reinkommt, entscheidet 
 ## 3. Datenbank anlegen
 
 1. **SQL Editor → New query** öffnen.
-2. Den kompletten Inhalt von `supabase/migrations/0001_grundgeruest.sql` einfügen und auf **Run** klicken. Danach genauso mit `0002_schichten_lineup_kalender.sql`, immer in dieser Reihenfolge.
+2. Den kompletten Inhalt von `supabase/migrations/0001_grundgeruest.sql` einfügen und auf **Run** klicken. Danach genauso mit `0002_schichten_lineup_kalender.sql` und `0003_orga_team_automatisch.sql`, immer in dieser Reihenfolge. (Oder gleich `supabase/setup_komplett.sql`, da stehen alle drei drin.)
 3. Eine neue Abfrage öffnen, den Namen eures Kollektivs einsetzen und ausführen:
 
    ```sql
