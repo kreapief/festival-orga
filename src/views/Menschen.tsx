@@ -4,6 +4,7 @@ import { db, errorText } from '../lib/supabase'
 import { appLink } from '../lib/route'
 import { Avatar, Icon, Sheet, copyText, toast } from '../lib/ui'
 import { ACCESS_LABEL, isLeadAccess, type Access, type Invite, type Profile } from '../lib/types'
+import { HelferQrButton, QrSheet } from './InviteQr'
 
 export function Menschen() {
   const { people, members, gewerkName } = useTeam()
@@ -13,7 +14,7 @@ export function Menschen() {
   return <>
     <div className="head">
       <div><h1>Menschen</h1><p className="muted">{people.length} {people.length === 1 ? 'Person' : 'Personen'} im Team.</p></div>
-      <button className="btn primary" onClick={() => setInviting(true)}><Icon name="link" />Leute einladen</button>
+      <div className="row"><HelferQrButton /><button className="btn primary" onClick={() => setInviting(true)}><Icon name="link" />Leute einladen</button></div>
     </div>
     <div className="people">
       {people.map(p => (
@@ -79,6 +80,7 @@ function Invites({ onClose }: { onClose: () => void }) {
   const { isAdmin, gewerke } = useTeam()
   const [invites, setInvites] = useState<Invite[]>([])
   const [g, setG] = useState(gewerke.find(x => x.kind !== 'orga')?.id ?? '')
+  const [qr, setQr] = useState<{ code: string; title: string; hint: string } | null>(null)
   const load = useCallback(async () => {
     const { data, error } = await db().from('invites').select('id,code,access,gewerk_id,active').eq('active', true).is('gewerk_id', null)
     if (error) toast(errorText(error)); else setInvites(data)
@@ -90,28 +92,38 @@ function Invites({ onClose }: { onClose: () => void }) {
     const { error } = await db().rpc('renew_invite', { p_invite: i.id })
     if (error) toast(errorText(error)); else { toast('Neuer Link erzeugt. Der alte funktioniert nicht mehr.'); load() }
   }
-  async function copyGewerk() {
+  const gewerkCode = async () => {
     const { data, error } = await db().rpc('gewerk_invite', { p_gewerk: g })
-    if (error) return toast(errorText(error))
-    copyText(appLink('join/' + data), 'Link kopiert. Wer darüber kommt, ist gleich im Team.')
+    if (error) { toast(errorText(error)); return null }
+    return data as string
   }
-  const row = (i: Invite | undefined) => i && <>
+  async function copyGewerk() {
+    const code = await gewerkCode()
+    if (code) copyText(appLink('join/' + code), 'Link kopiert. Wer darüber kommt, ist gleich im Team.')
+  }
+  async function qrGewerk() {
+    const code = await gewerkCode()
+    if (code) setQr({ code, title: `Helfer:in für ${gewerke.find(x => x.id === g)?.name ?? 'Bereich'}`, hint: 'Wer diesen Code scannt, ist Helfer:in und gleich im Team dieses Bereichs.' })
+  }
+  const row = (i: Invite | undefined, title: string, hint: string) => i && <>
     <span className="linkbox">{appLink('join/' + i.code)}</span>
     <div className="row"><button className="btn sm" onClick={() => copyText(appLink('join/' + i.code), 'Link kopiert. Schick ihn z. B. in eure WhatsApp-Gruppe.')}><Icon name="copy" size={18} />Kopieren</button>
+      <button className="btn sm" onClick={() => setQr({ code: i.code, title, hint })}>QR-Code zeigen</button>
       {isAdmin && <button className="btn sm" onClick={() => renew(i)}>Neuen Link erzeugen</button>}</div></>
 
   return (
     <Sheet title="Leute einladen" onClose={onClose}>
       <h2>Leute einladen</h2>
       <section className="stack"><h3>Helfer:innen</h3>
-        <p className="small muted">Wer sich über diesen Link anmeldet, ist automatisch Helfer:in.</p>{row(byAccess('helfer'))}
+        <p className="small muted">Wer sich über diesen Link anmeldet, ist automatisch Helfer:in.</p>{row(byAccess('helfer'), 'Helfer:in einladen', 'Wer diesen Code scannt, ist automatisch Helfer:in.')}
         <div className="field"><label htmlFor="invG">Link für einen Bereich</label><span className="hint">Wer darüber kommt, landet direkt im Team.</span>
           <div className="addrow"><select id="invG" value={g} onChange={e => setG(e.target.value)}>
-            {gewerke.filter(x => x.kind !== 'orga').map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-            <button className="btn" onClick={copyGewerk}><Icon name="copy" size={18} />Kopieren</button></div></div>
+            {gewerke.filter(x => x.kind !== 'orga').map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <div className="row"><button className="btn sm" onClick={copyGewerk}><Icon name="copy" size={18} />Kopieren</button><button className="btn sm" onClick={qrGewerk}>QR-Code zeigen</button></div></div>
       </section>
-      {isAdmin && <section className="stack"><h3>Crew</h3><p className="small muted">Nur an Leute geben, die Crew-Rechte bekommen sollen.</p>{row(byAccess('crew'))}</section>}
+      {isAdmin && <section className="stack"><h3>Crew</h3><p className="small muted">Nur an Leute geben, die Crew-Rechte bekommen sollen.</p>{row(byAccess('crew'), 'Crew einladen', 'Wer diesen Code scannt, ist Crew und im Orga-Team. Nur persönlich zeigen.')}</section>}
       <button className="btn" onClick={onClose}>Fertig</button>
+      {qr && <QrSheet {...qr} onClose={() => setQr(null)} />}
     </Sheet>
   )
 }

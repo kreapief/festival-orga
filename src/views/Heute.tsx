@@ -5,6 +5,7 @@ import { dayLabel, fmtCountdown, myCommitments, relDay, useSchedule, type Commit
 import { go } from '../lib/route'
 import type { Collective } from '../lib/types'
 import { TaskRow } from './Aufgaben'
+import { HelferQrButton } from './InviteQr'
 
 // Tickt jede Sekunde, damit der Countdown live läuft
 function useNow() {
@@ -30,7 +31,7 @@ export function Hero({ next, later, coll }: { next: Commitment; later: Commitmen
 }
 
 export function Heute() {
-  const { me } = useTeam()
+  const { me, isLead } = useTeam()
   const { tasks, loading, reload } = useTasks()
   const { coll, shifts, slots } = useSchedule()
   const mine = tasks.filter(t => !t.done && t.task_assignees.some(a => a.profile_id === me.id))
@@ -40,6 +41,7 @@ export function Heute() {
   return <>
     <div className="head"><div><h1>Hallo {me.name.split(' ')[0]}</h1><p className="muted">Das steht für dich an.</p></div></div>
     {upcoming.length > 0 && <Hero next={upcoming[0]} later={upcoming.slice(1, 3)} coll={coll} />}
+    {isLead && <section className="card row between"><div><h2>Neue Helfer:in?</h2><p className="muted small">Zeig den QR-Code. Wer ihn scannt, ist gleich Helfer:in.</p></div><HelferQrButton primary /></section>}
     <section className="card stack">
       <div className="row between"><h2>Deine Aufgaben</h2><span className="tag">{mine.length} offen</span></div>
       {loading ? <p className="muted">Lädt …</p> : mine.length ? <div className="list">{mine.slice(0, 5).map(t => <TaskRow key={t.id} t={t} onChange={reload} />)}</div>

@@ -49,6 +49,7 @@ class Query implements PromiseLike<{ data: unknown; error: null }> {
   constructor(private table: string) {}
   select(cols = '*') { this.embeds = [...cols.matchAll(/(\w+)\(/g)].map(m => m[1]); return this }
   order() { return this }
+  limit() { return this }
   eq(c: string, v: unknown) { this.filters.push(r => r[c] === v); return this }
   is(c: string, v: unknown) { this.filters.push(r => (r[c] ?? null) === v); return this }
   insert(p: Row | Row[]) { this.op = 'insert'; this.payload = p; return this }
