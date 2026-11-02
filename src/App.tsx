@@ -6,6 +6,7 @@ import { Toaster } from './lib/ui'
 import type { Profile } from './lib/types'
 import { Join, NoAccess, Relogin, Setup } from './views/Start'
 import { Shell } from './views/Shell'
+import { Gaeste } from './views/Gaeste'
 
 type Boot = { state: 'loading' } | { state: 'out' } | { state: 'in'; me: Profile } | { state: 'error'; msg: string }
 
@@ -30,6 +31,7 @@ export default function App() {
   let page
   if (!supabase) page = <Setup />
   else if (route.name === 'join') page = <Join code={route.code} me={boot.state === 'in' ? boot.me : null} onDone={load} />
+  else if (route.name === 'gaeste') page = <Gaeste />
   else if (route.name === 'wieder') page = <Relogin token={route.token} onDone={load} />
   else if (boot.state === 'loading') page = <div className="wait muted" aria-busy="true">Lädt …</div>
   else if (boot.state === 'error') page = <div className="card stack wait"><h1>Keine Verbindung</h1><p className="error">{boot.msg}</p><button className="btn" onClick={load}>Noch mal versuchen</button></div>

@@ -14,11 +14,12 @@ import { Dateien } from './Dateien'
 import { Menschen } from './Menschen'
 import { Einstellungen } from './Einstellungen'
 import { Profil } from './Profil'
+import { Marken } from './Marken'
 import { BellButton } from './Mitteilungen'
 
-type Item = { key: string; label: string; show?: 'lead' | 'admin' }
+type Item = { key: string; label: string; show?: 'lead' | 'admin' | 'marken' }
 const NAV: { lbl: string; items: Item[] }[] = [
-  { lbl: 'Überblick', items: [{ key: 'heute', label: 'Heute' }] },
+  { lbl: 'Überblick', items: [{ key: 'heute', label: 'Heute' }, { key: 'marken', label: 'Getränkemarken', show: 'marken' }] },
   { lbl: 'Planen', items: [{ key: 'aufgaben', label: 'Aufgaben' }, { key: 'schichten', label: 'Schichten' }, { key: 'kalender', label: 'Kalender' }, { key: 'lineup', label: 'Timetable' }] },
   { lbl: 'Team', items: [{ key: 'bereiche', label: 'Bereiche' }, { key: 'menschen', label: 'Menschen', show: 'lead' }] },
   { lbl: 'Ablage', items: [{ key: 'dateien', label: 'Dateien' }] },
@@ -29,7 +30,7 @@ const PRIMARY = ['heute', 'bereiche', 'aufgaben', 'kalender']
 
 const VIEWS: Record<string, (p: { param?: string }) => ReactNode> = {
   heute: Heute, aufgaben: Aufgaben, schichten: Schichten, kalender: Kalender, lineup: Lineup,
-  bereiche: Bereiche, dateien: Dateien, menschen: Menschen, einstellungen: Einstellungen, profil: Profil,
+  bereiche: Bereiche, dateien: Dateien, marken: Marken, menschen: Menschen, einstellungen: Einstellungen, profil: Profil,
 }
 
 export function Shell(props: { view: string; param?: string }) {
@@ -38,9 +39,9 @@ export function Shell(props: { view: string; param?: string }) {
 
 function ShellInner({ view, param }: { view: string; param?: string }) {
   const { me, isLead, isAdmin, reload: reloadTeam } = useTeam()
-  const { unread, reload: reloadLive } = useChat()
+  const { unread, tokens, reload: reloadLive } = useChat()
   const [tick, setTick] = useState(0)
-  const visible = (i: Item) => !i.show || (i.show === 'lead' ? isLead : isAdmin)
+  const visible = (i: Item) => !i.show || (i.show === 'lead' ? isLead : i.show === 'marken' ? tokens.total > 0 || isLead : isAdmin)
   const all = NAV.flatMap(g => g.items).filter(visible)
   const more = [...all.filter(i => !PRIMARY.includes(i.key)), { key: 'profil', label: 'Mein Profil' }]
   const current = view === 'mehr' || view === 'profil' || all.some(i => i.key === view) ? view : 'heute'

@@ -39,8 +39,9 @@ export function Kalender() {
         sub: `${hhmm(s.start_time)}–${hhmm(s.end_time)} · ${s.shift_members.map(m => person(m.profile_id)?.name).join(', ') || 'noch niemand'}${s.shift_members.length < s.need ? ` · fehlt noch ${s.need - s.shift_members.length}` : ''}` })
   }
   for (const l of slots) {
-    const date = dayDate(coll, l.day), p = person(l.profile_id)
-    if (date && p) all.push({ date, time: hhmm(l.start_time), title: p.act_name || p.name, kind: 'Auftritt', mine: l.profile_id === me.id, sub: `${hhmm(l.start_time)}–${hhmm(l.end_time)}` })
+    const date = dayDate(coll, l.day), p = l.profile_id ? person(l.profile_id) : undefined
+    const title = l.act_name?.trim() || p?.act_name || p?.name
+    if (date && title) all.push({ date, time: hhmm(l.start_time), title, kind: 'Auftritt', mine: !!l.profile_id && l.profile_id === me.id, sub: `${hhmm(l.start_time)}–${hhmm(l.end_time)}` })
   }
   const items = all.filter(i => filter === 'alle' || (filter === 'meine' ? i.mine : filter === 'schichten' ? i.kind === 'Schicht' : i.kind === 'Auftritt'))
     .sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')))

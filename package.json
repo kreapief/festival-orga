@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:db": "node supabase/tests/regeln.test.mjs supabase/migrations/0001_grundgeruest.sql supabase/migrations/0002_schichten_lineup_kalender.sql supabase/migrations/0003_orga_team_automatisch.sql supabase/migrations/0004_crew_gruppe.sql supabase/migrations/0005_gruppe_orga.sql supabase/migrations/0006_chat_dateien_archiv.sql supabase/migrations/0007_mitteilungen.sql"
+    "test:db": "node supabase/tests/regeln.test.mjs supabase/migrations/0001_grundgeruest.sql supabase/migrations/0002_schichten_lineup_kalender.sql supabase/migrations/0003_orga_team_automatisch.sql supabase/migrations/0004_crew_gruppe.sql supabase/migrations/0005_gruppe_orga.sql supabase/migrations/0006_chat_dateien_archiv.sql supabase/migrations/0007_mitteilungen.sql supabase/migrations/0008_marken_gaeste.sql "
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

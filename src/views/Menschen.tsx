@@ -66,6 +66,7 @@ function PersonSheet({ p, onClose }: { p: Profile; onClose: () => void }) {
           const ok = canManage(g.id)
           return <button type="button" key={g.id} aria-pressed={on} disabled={!ok} onClick={() => toggleGewerk(g.id, on)}><span className="box" aria-hidden="true">{on ? '✓' : ''}</span>{g.name}</button>
         })}</div></div>
+      <PersonTokens p={current} />
       <div className="field"><span className="flabel">Neues Handy?</span>
         <span className="hint">Erzeugt einen Link, mit dem {current.name.split(' ')[0]} auf einem neuen Gerät wieder reinkommt. Er gilt einmal und 24 Stunden.</span>
         {link ? <><span className="linkbox">{link}</span><button className="btn sm" onClick={() => copyText(link, 'Link kopiert. Schick ihn direkt an die Person.')}><Icon name="copy" size={18} />Kopieren</button></>
@@ -125,5 +126,37 @@ function Invites({ onClose }: { onClose: () => void }) {
       <button className="btn" onClick={onClose}>Fertig</button>
       {qr && <QrSheet {...qr} onClose={() => setQr(null)} />}
     </Sheet>
+  )
+}
+
+// Getränkemarken einer Person: Stand für die Crew, eigene Zahl und Rückgabe
+function PersonTokens({ p }: { p: Profile }) {
+  const { isAdmin, reload } = useTeam()
+  const [tk, setTk] = useState<{ total: number; used: number } | null>(null)
+  const [own, setOwn] = useState(p.tokens_override === null || p.tokens_override === undefined ? '' : String(p.tokens_override))
+  const load = useCallback(async () => {
+    const { data } = await db().rpc('person_tokens', { p_profile: p.id })
+    const row = (data as { total: number; used: number }[] | null)?.[0]
+    setTk(row ? { total: Number(row.total), used: Number(row.used) } : null)
+  }, [p.id])
+  useEffect(() => { load() }, [load])
+  if (!tk) return null
+  async function refund() {
+    const { error } = await db().rpc('refund_token', { p_profile: p.id })
+    if (error) toast(errorText(error)); else { toast('Marke zurückgegeben.'); load() }
+  }
+  async function saveOwn() {
+    const n = own.trim() === '' ? null : Math.max(0, Math.min(20, Math.round(+own)))
+    const { error } = await db().rpc('set_tokens', { p_profile: p.id, p_n: n })
+    if (error) toast(errorText(error)); else { toast(n === null ? 'Es gilt wieder die Einstellung für Zugang und Bereich.' : 'Gespeichert.'); load(); reload() }
+  }
+  return (
+    <div className="field"><span className="flabel">Getränkemarken</span>
+      <div className="row"><span>{tk.used} von {tk.total} eingelöst</span>{tk.used > 0 && <button className="btn sm" onClick={refund}>Eine Marke zurückgeben</button>}</div>
+      {isAdmin && <div className="row small" style={{ gap: 8 }}><label htmlFor="tokp">Eigene Zahl für diese Person:</label>
+        <input id="tokp" className="num" type="number" min={0} max={20} placeholder="–" value={own} onChange={e => setOwn(e.target.value)} />
+        <button className="btn sm" onClick={saveOwn}>Speichern</button></div>}
+      {isAdmin && <span className="hint">Leer lassen, dann gilt die Einstellung für Zugang und Bereich.</span>}
+    </div>
   )
 }

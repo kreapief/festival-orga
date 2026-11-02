@@ -27,7 +27,7 @@ export function TeamProvider({ me, onMeChanged, children }: { me: Profile; onMeC
   const reload = useCallback(async () => {
     const [p, g, m] = await Promise.all([
       db().from('profiles').select('*').order('name'),
-      db().from('gewerke').select('id,name,kind,sort').order('sort'),
+      db().from('gewerke').select('id,name,kind,sort,tokens').order('sort'),
       db().from('gewerk_members').select('gewerk_id,profile_id'),
     ])
     if (p.data) setPeople(p.data)

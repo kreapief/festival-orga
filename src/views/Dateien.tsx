@@ -10,7 +10,7 @@ export function Dateien() {
   const [edit, setEdit] = useState<Folder | null>(null)
 
   const load = useCallback(async () => {
-    const { data, error } = await db().from('folders').select('id,name,note,url,crew_only,sort').order('sort')
+    const { data, error } = await db().from('folders').select('id,name,note,url,crew_only,guest_visible,sort').order('sort')
     if (error) toast(errorText(error)); else setFolders((data as Folder[]).sort((a, b) => a.sort - b.sort))
   }, [])
   useEffect(() => { load() }, [load])
@@ -22,7 +22,7 @@ export function Dateien() {
         <section key={f.id} className="card stack">
           <div className="row"><Icon name="dateien" size={32} />
             <div className="grow"><h2>{f.name}</h2>{f.note && <p className="small muted">{f.note}</p>}</div></div>
-          <div className="row tags"><span className="tag">{f.crew_only ? 'Nur Crew und Admin' : 'Für alle im Team'}</span></div>
+          <div className="row tags"><span className="tag">{f.crew_only ? 'Nur Crew und Admin' : 'Für alle im Team'}</span>{f.guest_visible && f.url && <span className="tag role">Auch für Gäste</span>}</div>
           {f.url ? <a className="btn primary" href={f.url} target="_blank" rel="noopener noreferrer"><Icon name="link" size={18} />In Google Drive öffnen</a>
             : <p className="note">{isAdmin ? 'Hier fehlt noch der Drive-Link. Tippe auf „Link eintragen“.' : 'Der Link wird gerade eingerichtet. Frag den Admin.'}</p>}
           {isAdmin && <button className="btn sm" onClick={() => setEdit(f)}>{f.url ? 'Link ändern' : 'Link eintragen'}</button>}
@@ -44,13 +44,14 @@ export function Dateien() {
 
 function LinkSheet({ f, onClose, onSaved }: { f: Folder; onClose: () => void; onSaved: () => void }) {
   const [url, setUrl] = useState(f.url ?? '')
+  const [guest, setGuest] = useState(f.guest_visible)
   const [busy, setBusy] = useState(false)
   async function submit(e: FormEvent) {
     e.preventDefault()
     const v = url.trim()
     if (v && !/^https:\/\/\S+$/i.test(v)) return toast('Der Link muss mit https:// beginnen. Kopier ihn direkt aus Google Drive.')
     setBusy(true)
-    const { error } = await db().from('folders').update({ url: v || null }).eq('id', f.id)
+    const { error } = await db().from('folders').update({ url: v || null, guest_visible: f.crew_only ? false : guest }).eq('id', f.id)
     setBusy(false)
     if (error) return toast(errorText(error))
     toast(v ? 'Link gespeichert.' : 'Link entfernt.'); onSaved()
@@ -62,6 +63,7 @@ function LinkSheet({ f, onClose, onSaved }: { f: Folder; onClose: () => void; on
         <div className="field"><label htmlFor="fUrl">Link zum Google-Drive-Ordner</label>
           <input id="fUrl" inputMode="url" autoFocus placeholder="https://drive.google.com/drive/folders/…" value={url} onChange={e => setUrl(e.target.value)} />
           <span className="hint">In Drive: Ordner mit rechts anklicken, „Freigeben“, „Link kopieren“.</span></div>
+        {!f.crew_only && <label className="row small" style={{ gap: 8 }} htmlFor="fGuest"><input id="fGuest" type="checkbox" style={{ width: 20, minHeight: 20 }} checked={guest} onChange={e => setGuest(e.target.checked)} /> Auch auf der Gäste-Seite zeigen (öffentlich, ohne Konto)</label>}
         <div className="row end"><button type="button" className="btn" onClick={onClose}>Abbrechen</button><button className="btn primary" disabled={busy}>Speichern</button></div>
       </form>
     </Sheet>

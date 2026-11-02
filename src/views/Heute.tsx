@@ -35,6 +35,8 @@ export function Heute() {
   const { tasks, loading, reload } = useTasks()
   const { coll, shifts, slots } = useSchedule()
   const mine = tasks.filter(t => !t.done && t.task_assignees.some(a => a.profile_id === me.id))
+  // Offene Aufgaben ohne Person, die ich sehen und übernehmen darf (die Datenbank filtert schon nach meinen Rechten)
+  const open = tasks.filter(t => !t.done && !t.task_assignees.length)
   // Bis eine Stunde nach Beginn bleibt die Schicht oben stehen
   const upcoming = myCommitments(coll, shifts, slots, me.id).filter(c => c.start.getTime() > Date.now() - 3600e3)
 
@@ -48,6 +50,10 @@ export function Heute() {
         : <p className="muted">Gerade nichts offen.</p>}
       <button className="btn sm" onClick={() => go('aufgaben')}>Alle Aufgaben</button>
     </section>
+    {!loading && open.length > 0 && <section className="card stack"><div className="row between"><h2>Hilfe gesucht</h2><span className="tag prio mittel">{open.length} offen</span></div>
+      <p className="small muted">Diese Aufgaben hat noch niemand. Tipp auf „Übernehmen“, dann ist sie deine.</p>
+      <div className="list">{open.slice(0, 3).map(t => <TaskRow key={t.id} t={t} onChange={reload} />)}</div>
+      {open.length > 3 && <button className="btn sm" onClick={() => go('aufgaben')}>Alle offenen Aufgaben</button>}</section>}
     {!upcoming.length && me.access === 'helfer' && <section className="card stack"><h2>Deine Schichten</h2>
       <p className="muted">Du bist noch in keiner Schicht eingetragen.</p><button className="btn sm" onClick={() => go('schichten')}>Freie Schichten ansehen</button></section>}
   </>

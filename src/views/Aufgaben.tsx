@@ -13,7 +13,7 @@ export function TaskRow({ t, onChange }: { t: Task; onChange: () => void }) {
   const act = async (p: Promise<boolean>) => { if (await p) onChange() }
 
   let action = null
-  if (!t.done && !t.task_assignees.length && (isLead || inGewerk(t.gewerk_id)))
+  if (!t.done && !t.task_assignees.length && (isLead || !t.gewerk_id || inGewerk(t.gewerk_id)))
     action = <button className="btn sm primary" onClick={() => act(claimTask(t.id))}>Übernehmen</button>
   else if (!t.done && mine && !canTick && !mine.reported_done)
     action = <button className="btn sm" onClick={() => act(reportDone(t.id))}><Icon name="check" size={18} />Ich bin fertig</button>
@@ -31,7 +31,7 @@ export function TaskRow({ t, onChange }: { t: Task; onChange: () => void }) {
           {!t.done && !t.task_assignees.length && <span className="tag strong">○ Offen · noch niemand</span>}
           {!t.done && reported && <span className="tag ok">✓ Fertig gemeldet{canTick ? ' · bitte abhaken' : ''}</span>}
           <span className={`tag prio ${t.prio}`}><span aria-hidden="true">{PRIO_ICON[t.prio]}</span> {PRIO_LABEL[t.prio]}</span>
-          {t.gewerk_id && <span className="tag">{gewerkName(t.gewerk_id)}</span>}
+          <span className="tag">{t.gewerk_id ? gewerkName(t.gewerk_id) : 'Für alle'}</span>
           {t.done && t.done_at ? <span>erledigt am {fmtDate(t.done_at.slice(0, 10))}</span> : t.due_date && <span>{fmtDate(t.due_date)}{t.due_time ? `, ${t.due_time.slice(0, 5)} Uhr` : ''}</span>}
         </div>
         <div className="who-box"><span className="who-lbl">Zuständig</span>
@@ -83,7 +83,7 @@ export function Aufgaben() {
 
 function TaskForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { me, people, gewerke, inGewerk, gewerkName, members } = useTeam()
-  const [t, setT] = useState<NewTask>({ title: '', gewerk_id: gewerke[0]?.id ?? '', due_date: '', due_time: '', prio: 'mittel', who: [] })
+  const [t, setT] = useState<NewTask>({ title: '', gewerk_id: '', due_date: '', due_time: '', prio: 'mittel', who: [] })
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -109,8 +109,11 @@ function TaskForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
         <h2>Neue Aufgabe</h2>
         <div className="field"><label htmlFor="tt">Was ist zu tun?</label>
           <input id="tt" required autoFocus maxLength={200} placeholder="z. B. Bühnenplan an Technik schicken" value={t.title} onChange={e => set({ title: e.target.value })} /></div>
-        <div className="field"><label htmlFor="tg">Bereich</label>
-          <select id="tg" value={t.gewerk_id} onChange={e => set({ gewerk_id: e.target.value })}>{gewerke.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+        <div className="field"><label htmlFor="tg">Wer soll die Aufgabe sehen?</label>
+          <select id="tg" value={t.gewerk_id} onChange={e => set({ gewerk_id: e.target.value })}>
+            <option value="">Alle Helfenden (jede:r kann sie übernehmen)</option>
+            {gewerke.map(g => <option key={g.id} value={g.id}>Nur {g.name}</option>)}</select>
+          <span className="hint">{t.gewerk_id ? 'Nur Crew, Admin und Leute aus diesem Bereich sehen sie. Andere Helfende nicht.' : 'Alle im Team sehen die Aufgabe, solange sie offen ist, und können sich selbst eintragen. Gut, wenn es schnell gehen muss.'}</span></div>
         <div className="field"><span className="flabel" id="whoLbl">Wer kümmert sich?</span>
           <span className="hint">Mehrere Personen möglich. Leer lassen, wenn jemand aus dem Bereich die Aufgabe übernehmen soll.</span>
           <div className="chips">{t.who.length ? t.who.map(id => <span key={id} className="tag role">{people.find(p => p.id === id)?.name}

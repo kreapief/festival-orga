@@ -1,8 +1,7 @@
--- Festival-Orga: komplette Einrichtung (0001 bis 0007). Einmal im SQL-Editor von Supabase ausführen.
-
--- Festival-Orga: Grundgerüst
--- Anmeldung nur über das Gerät (anonyme Supabase-Anmeldung), verknüpft mit einem Profil.
--- Wer was sehen und ändern darf, regeln die Policies unten (Row Level Security).
+﻿-- ===== 0001_grundgeruest.sql =====
+-- Festival-Orga: GrundgerÃ¼st
+-- Anmeldung nur Ã¼ber das GerÃ¤t (anonyme Supabase-Anmeldung), verknÃ¼pft mit einem Profil.
+-- Wer was sehen und Ã¤ndern darf, regeln die Policies unten (Row Level Security).
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -20,7 +19,7 @@ create table public.collectives (
 create table public.profiles (
   id uuid primary key default gen_random_uuid(),
   collective_id uuid not null references public.collectives on delete cascade,
-  -- Das Gerät, mit dem die Person gerade angemeldet ist. Ein Wiederanmelde-Link hängt das Profil um.
+  -- Das GerÃ¤t, mit dem die Person gerade angemeldet ist. Ein Wiederanmelde-Link hÃ¤ngt das Profil um.
   user_id uuid unique references auth.users on delete set null,
   name text not null check (char_length(trim(name)) between 1 and 60),
   access public.access_level not null default 'helfer',
@@ -49,7 +48,7 @@ create table public.invites (
   collective_id uuid not null references public.collectives on delete cascade,
   code text not null unique,
   access public.access_level not null,
-  -- Bereich-Link: wer darüber kommt, landet direkt im Team
+  -- Bereich-Link: wer darÃ¼ber kommt, landet direkt im Team
   gewerk_id uuid references public.gewerke on delete cascade,
   -- Admin-Einladung gilt nur einmal
   single_use boolean not null default false,
@@ -183,8 +182,8 @@ create policy "eigenes Kollektiv lesen" on public.collectives
 
 create policy "Team lesen" on public.profiles
   for select to authenticated using (collective_id = public.my_collective());
--- Nur Name und Foto selbst ändern; den Zugang ändert der Admin über set_access()
-create policy "eigenes Profil ändern" on public.profiles
+-- Nur Name und Foto selbst Ã¤ndern; den Zugang Ã¤ndert der Admin Ã¼ber set_access()
+create policy "eigenes Profil Ã¤ndern" on public.profiles
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 revoke update on public.profiles from authenticated;
 grant update (name, photo_url) on public.profiles to authenticated;
@@ -214,9 +213,9 @@ create policy "Einladungen lesen" on public.invites
   for select to authenticated
   using (collective_id = public.my_collective() and (public.is_admin() or (public.is_lead() and access = 'helfer')));
 
--- relogin_tokens: kein direkter Zugriff, nur über Funktionen
+-- relogin_tokens: kein direkter Zugriff, nur Ã¼ber Funktionen
 
--- Prüft die Zeile selbst (nicht über can_see_task), damit auch eine gerade angelegte Aufgabe sofort lesbar ist
+-- PrÃ¼ft die Zeile selbst (nicht Ã¼ber can_see_task), damit auch eine gerade angelegte Aufgabe sofort lesbar ist
 create policy "Aufgaben lesen" on public.tasks
   for select to authenticated
   using (collective_id = public.my_collective() and (
@@ -225,24 +224,24 @@ create policy "Aufgaben lesen" on public.tasks
 create policy "Aufgaben anlegen" on public.tasks
   for insert to authenticated
   with check (collective_id = public.my_collective() and public.is_lead() and created_by = public.my_profile_id());
--- Ändern und abhaken: wer die Aufgabe erstellt hat, oder ein Admin
-create policy "Aufgaben ändern" on public.tasks
+-- Ã„ndern und abhaken: wer die Aufgabe erstellt hat, oder ein Admin
+create policy "Aufgaben Ã¤ndern" on public.tasks
   for update to authenticated
   using (collective_id = public.my_collective() and (created_by = public.my_profile_id() or public.is_admin()));
-create policy "Aufgaben löschen" on public.tasks
+create policy "Aufgaben lÃ¶schen" on public.tasks
   for delete to authenticated
   using (collective_id = public.my_collective() and (created_by = public.my_profile_id() or public.is_admin()));
 
-create policy "Zuständige lesen" on public.task_assignees
+create policy "ZustÃ¤ndige lesen" on public.task_assignees
   for select to authenticated using (public.can_see_task(task_id));
-create policy "Zuständige eintragen" on public.task_assignees
+create policy "ZustÃ¤ndige eintragen" on public.task_assignees
   for insert to authenticated with check (public.is_lead() and public.can_see_task(task_id));
-create policy "Zuständige austragen" on public.task_assignees
+create policy "ZustÃ¤ndige austragen" on public.task_assignees
   for delete to authenticated using (public.is_lead() and public.can_see_task(task_id));
 
 -- ---------- Funktionen, die die App aufruft ----------
 
--- Über einen Einladungslink beitreten. Zugang und Bereich kommen aus dem Link.
+-- Ãœber einen Einladungslink beitreten. Zugang und Bereich kommen aus dem Link.
 create function public.join_with_code(p_code text, p_name text) returns public.profiles
 language plpgsql security definer set search_path = public as $$
 declare
@@ -250,7 +249,7 @@ declare
   prof profiles;
 begin
   if auth.uid() is null then raise exception 'Nicht angemeldet'; end if;
-  if exists (select 1 from profiles where user_id = auth.uid()) then raise exception 'Dieses Gerät ist schon angemeldet'; end if;
+  if exists (select 1 from profiles where user_id = auth.uid()) then raise exception 'Dieses GerÃ¤t ist schon angemeldet'; end if;
   select * into inv from invites where code = upper(trim(p_code)) and active;
   if not found then raise exception 'Dieser Einladungslink gilt nicht mehr. Frag die Crew nach einem neuen.'; end if;
 
@@ -265,13 +264,13 @@ begin
   return prof;
 end $$;
 
--- Crew oder Admin erzeugt einen Link, mit dem eine Person auf einem neuen Gerät wieder reinkommt.
+-- Crew oder Admin erzeugt einen Link, mit dem eine Person auf einem neuen GerÃ¤t wieder reinkommt.
 create function public.create_relogin_link(p_profile uuid) returns text
 language plpgsql security definer set search_path = public as $$
 declare
   t text;
 begin
-  if not public.is_lead() then raise exception 'Nur Crew und Admin dürfen das'; end if;
+  if not public.is_lead() then raise exception 'Nur Crew und Admin dÃ¼rfen das'; end if;
   if not exists (select 1 from profiles where id = p_profile and collective_id = public.my_collective()) then
     raise exception 'Person nicht gefunden';
   end if;
@@ -281,7 +280,7 @@ begin
   return t;
 end $$;
 
--- Auf dem neuen Gerät: Profil übernehmen. Das alte Gerät ist danach abgemeldet.
+-- Auf dem neuen GerÃ¤t: Profil Ã¼bernehmen. Das alte GerÃ¤t ist danach abgemeldet.
 create function public.claim_relogin(p_token text) returns public.profiles
 language plpgsql security definer set search_path = public as $$
 declare
@@ -293,7 +292,7 @@ begin
   if not found or rt.used_at is not null or rt.expires_at < now() then
     raise exception 'Dieser Link ist abgelaufen oder wurde schon benutzt. Frag die Crew nach einem neuen.';
   end if;
-  -- Falls dieses Gerät schon an einem anderen Profil hing, lösen
+  -- Falls dieses GerÃ¤t schon an einem anderen Profil hing, lÃ¶sen
   update profiles set user_id = null where user_id = auth.uid();
   update profiles set user_id = auth.uid() where id = rt.profile_id returning * into prof;
   update relogin_tokens set used_at = now() where token = rt.token;
@@ -304,7 +303,7 @@ create function public.set_access(p_profile uuid, p_access public.access_level) 
 language plpgsql security definer set search_path = public as $$
 begin
   if not public.is_admin() then raise exception 'Nur der Admin darf das'; end if;
-  if p_profile = public.my_profile_id() then raise exception 'Den eigenen Zugang kannst du nicht ändern'; end if;
+  if p_profile = public.my_profile_id() then raise exception 'Den eigenen Zugang kannst du nicht Ã¤ndern'; end if;
   update profiles set access = p_access where id = p_profile and collective_id = public.my_collective();
 end $$;
 
@@ -318,7 +317,7 @@ begin
   return c;
 end $$;
 
--- Zuständige Person meldet: Ich bin fertig
+-- ZustÃ¤ndige Person meldet: Ich bin fertig
 create function public.report_task_done(p_task uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -326,7 +325,7 @@ begin
   if not found then raise exception 'Du bist bei dieser Aufgabe nicht eingetragen'; end if;
 end $$;
 
--- Offene Aufgabe übernehmen (ich mach das)
+-- Offene Aufgabe Ã¼bernehmen (ich mach das)
 create function public.claim_task(p_task uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare
@@ -335,21 +334,21 @@ begin
   select * into t from tasks where id = p_task and collective_id = public.my_collective();
   if not found then raise exception 'Aufgabe nicht gefunden'; end if;
   if exists (select 1 from task_assignees where task_id = p_task) then raise exception 'Die Aufgabe hat schon jemand'; end if;
-  if not (public.is_lead() or public.in_gewerk(t.gewerk_id)) then raise exception 'Die Aufgabe gehört nicht zu deinen Bereichen'; end if;
+  if not (public.is_lead() or public.in_gewerk(t.gewerk_id)) then raise exception 'Die Aufgabe gehÃ¶rt nicht zu deinen Bereichen'; end if;
   insert into task_assignees (task_id, profile_id, claimed) values (p_task, public.my_profile_id(), true);
 end $$;
 
--- Link für einen Bereich: wer darüber kommt, ist Helfer:in und gleich im Team
+-- Link fÃ¼r einen Bereich: wer darÃ¼ber kommt, ist Helfer:in und gleich im Team
 create function public.gewerk_invite(p_gewerk uuid) returns text
 language plpgsql security definer set search_path = public as $$
 declare
   c text;
   g gewerke;
 begin
-  if not public.is_lead() then raise exception 'Nur Crew und Admin dürfen das'; end if;
+  if not public.is_lead() then raise exception 'Nur Crew und Admin dÃ¼rfen das'; end if;
   select * into g from gewerke where id = p_gewerk and collective_id = public.my_collective();
   if not found then raise exception 'Bereich nicht gefunden'; end if;
-  if g.kind = 'orga' then raise exception 'Fürs Orga-Team gibt es keinen Helfer:innen-Link'; end if;
+  if g.kind = 'orga' then raise exception 'FÃ¼rs Orga-Team gibt es keinen Helfer:innen-Link'; end if;
   select code into c from invites where gewerk_id = p_gewerk and active;
   if found then return c; end if;
   insert into invites (collective_id, code, access, gewerk_id)
@@ -357,7 +356,7 @@ begin
   return c;
 end $$;
 
--- Für die Anmeldeseite: wofür lädt dieser Link ein? Darf auch ohne Anmeldung gefragt werden.
+-- FÃ¼r die Anmeldeseite: wofÃ¼r lÃ¤dt dieser Link ein? Darf auch ohne Anmeldung gefragt werden.
 create function public.invite_info(p_code text)
 returns table (zugang public.access_level, bereich text, kollektiv text)
 language sql stable security definer set search_path = public as $$
@@ -367,7 +366,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function public.invite_info(text) to anon, authenticated;
 
--- Ersteinrichtung: nur im SQL-Editor von Supabase ausführen, nicht aus der App
+-- Ersteinrichtung: nur im SQL-Editor von Supabase ausfÃ¼hren, nicht aus der App
 create function public.create_collective(p_name text)
 returns table (art text, code text)
 language plpgsql security definer set search_path = public as $$
@@ -377,7 +376,7 @@ declare
   i int := 0;
 begin
   insert into collectives (name) values (p_name) returning id into c;
-  foreach g in array array['Orga','Barschichten','Aufbau','Designs','Deko','Essen','Social Media','Spiele Olympiade','Glücksrad','Shuttle','DJs','Awareness'] loop
+  foreach g in array array['Orga','Barschichten','Aufbau','Designs','Deko','Essen','Social Media','Spiele Olympiade','GlÃ¼cksrad','Shuttle','DJs','Awareness'] loop
     insert into gewerke (collective_id, name, kind, sort)
     values (c, g, case g when 'Orga' then 'orga' when 'DJs' then 'djs' end, i);
     i := i + 1;
@@ -393,6 +392,7 @@ revoke execute on function public.random_code(int) from public, anon, authentica
 revoke execute on function public.join_with_code(text, text) from anon;
 revoke execute on function public.claim_relogin(text) from anon;
 
+-- ===== 0002_schichten_lineup_kalender.sql =====
 -- Festival-Orga: Festivaltage, Schichten, Line-up und Termine
 
 -- ---------- Festivaltage ----------
@@ -418,7 +418,7 @@ create function public.set_act(p_profile uuid, p_name text, p_genre text) return
 language plpgsql security definer set search_path = public as $$
 begin
   if not (public.is_lead() or p_profile = public.my_profile_id()) then
-    raise exception 'DJ-Infos ändern nur der DJ selbst, Crew oder Admin';
+    raise exception 'DJ-Infos Ã¤ndern nur der DJ selbst, Crew oder Admin';
   end if;
   update profiles set act_name = nullif(trim(p_name), ''), act_genre = nullif(trim(p_genre), '')
   where id = p_profile and collective_id = public.my_collective();
@@ -482,7 +482,7 @@ alter table public.shift_members enable row level security;
 alter table public.lineup_slots enable row level security;
 alter table public.events enable row level security;
 
--- Alle im Team sehen alle Schichten (für die Tagesübersicht: wer ist wann wo)
+-- Alle im Team sehen alle Schichten (fÃ¼r die TagesÃ¼bersicht: wer ist wann wo)
 create policy "Schichten lesen" on public.shifts
   for select to authenticated using (collective_id = public.my_collective());
 create policy "Schichten planen" on public.shifts
@@ -493,7 +493,7 @@ create policy "Schichten planen" on public.shifts
 create policy "Schichtbesetzung lesen" on public.shift_members
   for select to authenticated
   using (exists (select 1 from shifts s where s.id = shift_id and s.collective_id = public.my_collective()));
--- Andere eintragen nur, wer die Schicht plant. Sich selbst eintragen geht über join_shift().
+-- Andere eintragen nur, wer die Schicht plant. Sich selbst eintragen geht Ã¼ber join_shift().
 create policy "Schicht zuteilen" on public.shift_members
   for insert to authenticated
   with check (
@@ -543,9 +543,10 @@ begin
   insert into shift_members (shift_id, profile_id) values (p_shift, public.my_profile_id());
 end $$;
 
--- Festival-Orga: Crew und Admin gehören automatisch zum Bereich „Orga“
+-- ===== 0003_orga_team_automatisch.sql =====
+-- Festival-Orga: Crew und Admin gehÃ¶ren automatisch zum Bereich â€žOrgaâ€œ
 
--- Beitreten: Wer über einen Crew- oder Admin-Link kommt, ist gleich im Orga-Team.
+-- Beitreten: Wer Ã¼ber einen Crew- oder Admin-Link kommt, ist gleich im Orga-Team.
 create or replace function public.join_with_code(p_code text, p_name text) returns public.profiles
 language plpgsql security definer set search_path = public as $$
 declare
@@ -553,7 +554,7 @@ declare
   prof profiles;
 begin
   if auth.uid() is null then raise exception 'Nicht angemeldet'; end if;
-  if exists (select 1 from profiles where user_id = auth.uid()) then raise exception 'Dieses Gerät ist schon angemeldet'; end if;
+  if exists (select 1 from profiles where user_id = auth.uid()) then raise exception 'Dieses GerÃ¤t ist schon angemeldet'; end if;
   select * into inv from invites where code = upper(trim(p_code)) and active;
   if not found then raise exception 'Dieser Einladungslink gilt nicht mehr. Frag die Crew nach einem neuen.'; end if;
 
@@ -573,12 +574,12 @@ begin
   return prof;
 end $$;
 
--- Zugang ändern: Wer Crew oder Admin wird, kommt ins Orga-Team. Wer zur Helfer:in wird, verlässt es.
+-- Zugang Ã¤ndern: Wer Crew oder Admin wird, kommt ins Orga-Team. Wer zur Helfer:in wird, verlÃ¤sst es.
 create or replace function public.set_access(p_profile uuid, p_access public.access_level) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   if not public.is_admin() then raise exception 'Nur der Admin darf das'; end if;
-  if p_profile = public.my_profile_id() then raise exception 'Den eigenen Zugang kannst du nicht ändern'; end if;
+  if p_profile = public.my_profile_id() then raise exception 'Den eigenen Zugang kannst du nicht Ã¤ndern'; end if;
   update profiles set access = p_access where id = p_profile and collective_id = public.my_collective();
   if p_access in ('admin', 'crew') then
     insert into gewerk_members (gewerk_id, profile_id)
@@ -597,9 +598,10 @@ join public.gewerke g on g.collective_id = p.collective_id and g.kind = 'orga'
 where p.access in ('admin', 'crew')
 on conflict do nothing;
 
--- Festival-Orga: Der Bereich „Orga“ heißt jetzt „Crew“ (wie die Rolle).
+-- ===== 0004_crew_gruppe.sql =====
+-- Festival-Orga: Der Bereich â€žOrgaâ€œ heiÃŸt jetzt â€žCrewâ€œ (wie die Rolle).
 -- Wer Crew-Rechte hat, ist automatisch in der Gruppe Crew. Wer in der Gruppe Crew ist, hat dadurch
--- aber noch keine Crew-Rechte: Der Admin (und die Crew-Leute dort) dürfen auch Helfer:innen in die Gruppe holen.
+-- aber noch keine Crew-Rechte: Der Admin (und die Crew-Leute dort) dÃ¼rfen auch Helfer:innen in die Gruppe holen.
 
 update public.gewerke set name = 'Crew' where kind = 'orga' and name = 'Orga';
 
@@ -611,13 +613,13 @@ create policy "ins Team holen" on public.gewerk_members
     and exists (select 1 from profiles p where p.id = profile_id and p.collective_id = public.my_collective())
   );
 
--- Zugang ändern: Wer Crew oder Admin wird, kommt in die Gruppe Crew.
+-- Zugang Ã¤ndern: Wer Crew oder Admin wird, kommt in die Gruppe Crew.
 -- Wer wieder Helfer:in wird, bleibt dort, bis jemand ihn herausnimmt.
 create or replace function public.set_access(p_profile uuid, p_access public.access_level) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   if not public.is_admin() then raise exception 'Nur der Admin darf das'; end if;
-  if p_profile = public.my_profile_id() then raise exception 'Den eigenen Zugang kannst du nicht ändern'; end if;
+  if p_profile = public.my_profile_id() then raise exception 'Den eigenen Zugang kannst du nicht Ã¤ndern'; end if;
   update profiles set access = p_access where id = p_profile and collective_id = public.my_collective();
   if p_access in ('admin', 'crew') then
     insert into gewerk_members (gewerk_id, profile_id)
@@ -632,10 +634,10 @@ declare
   c text;
   g gewerke;
 begin
-  if not public.is_lead() then raise exception 'Nur Crew und Admin dürfen das'; end if;
+  if not public.is_lead() then raise exception 'Nur Crew und Admin dÃ¼rfen das'; end if;
   select * into g from gewerke where id = p_gewerk and collective_id = public.my_collective();
   if not found then raise exception 'Bereich nicht gefunden'; end if;
-  if g.kind = 'orga' then raise exception 'Für die Gruppe Crew gibt es keinen Helfer:innen-Link'; end if;
+  if g.kind = 'orga' then raise exception 'FÃ¼r die Gruppe Crew gibt es keinen Helfer:innen-Link'; end if;
   select code into c from invites where gewerk_id = p_gewerk and active;
   if found then return c; end if;
   insert into invites (collective_id, code, access, gewerk_id)
@@ -643,7 +645,7 @@ begin
   return c;
 end $$;
 
--- Für neue Kollektive: der Bereich heißt gleich Crew
+-- FÃ¼r neue Kollektive: der Bereich heiÃŸt gleich Crew
 create or replace function public.create_collective(p_name text)
 returns table (art text, code text)
 language plpgsql security definer set search_path = public as $$
@@ -653,7 +655,7 @@ declare
   i int := 0;
 begin
   insert into collectives (name) values (p_name) returning id into c;
-  foreach g in array array['Crew','Barschichten','Aufbau','Designs','Deko','Essen','Social Media','Spiele Olympiade','Glücksrad','Shuttle','DJs','Awareness'] loop
+  foreach g in array array['Crew','Barschichten','Aufbau','Designs','Deko','Essen','Social Media','Spiele Olympiade','GlÃ¼cksrad','Shuttle','DJs','Awareness'] loop
     insert into gewerke (collective_id, name, kind, sort)
     values (c, g, case g when 'Crew' then 'orga' when 'DJs' then 'djs' end, i);
     i := i + 1;
@@ -664,7 +666,8 @@ begin
   return query select i2.access::text, i2.code from invites i2 where i2.collective_id = c order by i2.access;
 end $$;
 
--- Festival-Orga: Die Rolle heißt „Crew“, die Gruppe (der Chat) heißt „Orga“.
+-- ===== 0005_gruppe_orga.sql =====
+-- Festival-Orga: Die Rolle heiÃŸt â€žCrewâ€œ, die Gruppe (der Chat) heiÃŸt â€žOrgaâ€œ.
 -- Wer Crew-Rechte hat, ist automatisch in der Gruppe Orga. Wer in der Gruppe Orga ist, hat dadurch keine Crew-Rechte.
 
 update public.gewerke set name = 'Orga' where kind = 'orga';
@@ -675,10 +678,10 @@ declare
   c text;
   g gewerke;
 begin
-  if not public.is_lead() then raise exception 'Nur Crew und Admin dürfen das'; end if;
+  if not public.is_lead() then raise exception 'Nur Crew und Admin dÃ¼rfen das'; end if;
   select * into g from gewerke where id = p_gewerk and collective_id = public.my_collective();
   if not found then raise exception 'Bereich nicht gefunden'; end if;
-  if g.kind = 'orga' then raise exception 'Für die Gruppe Orga gibt es keinen Helfer:innen-Link'; end if;
+  if g.kind = 'orga' then raise exception 'FÃ¼r die Gruppe Orga gibt es keinen Helfer:innen-Link'; end if;
   select code into c from invites where gewerk_id = p_gewerk and active;
   if found then return c; end if;
   insert into invites (collective_id, code, access, gewerk_id)
@@ -695,7 +698,7 @@ declare
   i int := 0;
 begin
   insert into collectives (name) values (p_name) returning id into c;
-  foreach g in array array['Orga','Barschichten','Aufbau','Designs','Deko','Essen','Social Media','Spiele Olympiade','Glücksrad','Shuttle','DJs','Awareness'] loop
+  foreach g in array array['Orga','Barschichten','Aufbau','Designs','Deko','Essen','Social Media','Spiele Olympiade','GlÃ¼cksrad','Shuttle','DJs','Awareness'] loop
     insert into gewerke (collective_id, name, kind, sort)
     values (c, g, case g when 'Orga' then 'orga' when 'DJs' then 'djs' end, i);
     i := i + 1;
@@ -706,7 +709,8 @@ begin
   return query select i2.access::text, i2.code from invites i2 where i2.collective_id = c order by i2.access;
 end $$;
 
--- Festival-Orga: Chat-Räume, Ordner-Links (Google Drive) und Archiv für erledigte Aufgaben
+-- ===== 0006_chat_dateien_archiv.sql =====
+-- Festival-Orga: Chat-RÃ¤ume, Ordner-Links (Google Drive) und Archiv fÃ¼r erledigte Aufgaben
 
 -- ---------- Aufgaben: wann erledigt ----------
 alter table public.tasks add column done_at timestamptz;
@@ -763,13 +767,13 @@ create policy "Nachrichten lesen" on public.messages
 create policy "Nachrichten schreiben" on public.messages
   for insert to authenticated
   with check (collective_id = public.my_collective() and profile_id = public.my_profile_id() and public.can_chat(channel));
--- Löschen: die eigene Nachricht oder der Admin
-create policy "Nachrichten löschen" on public.messages
+-- LÃ¶schen: die eigene Nachricht oder der Admin
+create policy "Nachrichten lÃ¶schen" on public.messages
   for delete to authenticated
   using (collective_id = public.my_collective() and (profile_id = public.my_profile_id() or public.is_admin()));
--- chat_reads: kein direkter Zugriff, nur über mark_read()
+-- chat_reads: kein direkter Zugriff, nur Ã¼ber mark_read()
 
--- Übersicht für die Raumliste: alle meine Räume mit letzter Nachricht und Zahl der ungelesenen
+-- Ãœbersicht fÃ¼r die Raumliste: alle meine RÃ¤ume mit letzter Nachricht und Zahl der ungelesenen
 create function public.chat_overview()
 returns table (channel text, last_body text, last_at timestamptz, last_name text, unread bigint)
 language sql stable security definer set search_path = public as $$
@@ -813,7 +817,7 @@ create table public.folders (
 create index on public.folders (collective_id);
 alter table public.folders enable row level security;
 
--- Ordner nur für die Crew sieht die Helfer:in gar nicht erst (auch nicht den Link)
+-- Ordner nur fÃ¼r die Crew sieht die Helfer:in gar nicht erst (auch nicht den Link)
 create policy "Ordner lesen" on public.folders
   for select to authenticated using (collective_id = public.my_collective() and (not crew_only or public.is_lead()));
 create policy "Ordner verwalten" on public.folders
@@ -821,13 +825,13 @@ create policy "Ordner verwalten" on public.folders
   using (collective_id = public.my_collective() and public.is_admin())
   with check (collective_id = public.my_collective() and public.is_admin());
 
--- Jedes Kollektiv bekommt einen Fotoordner (für alle) und einen Orga-Ordner (nur Crew)
+-- Jedes Kollektiv bekommt einen Fotoordner (fÃ¼r alle) und einen Orga-Ordner (nur Crew)
 create function public.seed_folders() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   insert into folders (collective_id, name, note, crew_only, sort) values
-    (new.id, 'Fotos', 'Alle Fotos fürs Team', false, 0),
-    (new.id, 'Orga-Ordner', 'Logos, Designs, Verträge und alles Wichtige', true, 1);
+    (new.id, 'Fotos', 'Alle Fotos fÃ¼rs Team', false, 0),
+    (new.id, 'Orga-Ordner', 'Logos, Designs, VertrÃ¤ge und alles Wichtige', true, 1);
   return new;
 end $$;
 create trigger collectives_seed_folders after insert on public.collectives
@@ -835,12 +839,13 @@ create trigger collectives_seed_folders after insert on public.collectives
 
 insert into public.folders (collective_id, name, note, crew_only, sort)
 select c.id, f.name, f.note, f.crew_only, f.sort from public.collectives c,
-  (values ('Fotos', 'Alle Fotos fürs Team', false, 0), ('Orga-Ordner', 'Logos, Designs, Verträge und alles Wichtige', true, 1)) as f(name, note, crew_only, sort)
+  (values ('Fotos', 'Alle Fotos fÃ¼rs Team', false, 0), ('Orga-Ordner', 'Logos, Designs, VertrÃ¤ge und alles Wichtige', true, 1)) as f(name, note, crew_only, sort)
 where not exists (select 1 from public.folders x where x.collective_id = c.id);
 
+-- ===== 0007_mitteilungen.sql =====
 -- Festival-Orga: Mitteilungen. Wer etwas betrifft, bekommt automatisch eine Nachricht in der App.
--- Die Mitteilungen entstehen in der Datenbank selbst (Auslöser), nicht in der Oberfläche.
--- So entgehen sie niemandem, egal wer die Änderung auslöst.
+-- Die Mitteilungen entstehen in der Datenbank selbst (AuslÃ¶ser), nicht in der OberflÃ¤che.
+-- So entgehen sie niemandem, egal wer die Ã„nderung auslÃ¶st.
 
 create table public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -856,14 +861,14 @@ alter table public.notifications enable row level security;
 
 create policy "eigene Mitteilungen lesen" on public.notifications
   for select to authenticated using (profile_id = public.my_profile_id());
-create policy "eigene Mitteilungen löschen" on public.notifications
+create policy "eigene Mitteilungen lÃ¶schen" on public.notifications
   for delete to authenticated using (profile_id = public.my_profile_id());
 create policy "eigene als gelesen markieren" on public.notifications
   for update to authenticated using (profile_id = public.my_profile_id()) with check (profile_id = public.my_profile_id());
 revoke update on public.notifications from authenticated;
 grant update (read_at) on public.notifications to authenticated;
 
--- Eine Mitteilung anlegen. Wer die Änderung selbst auslöst, bekommt keine.
+-- Eine Mitteilung anlegen. Wer die Ã„nderung selbst auslÃ¶st, bekommt keine.
 create function public.notify(p_profile uuid, p_body text, p_link text default null) returns void
 language plpgsql security definer set search_path = public as $$
 declare
@@ -876,7 +881,7 @@ begin
 end $$;
 revoke execute on function public.notify(uuid, text, text) from public, anon, authenticated;
 
--- „Fr 17.07.“ für einen Festivaltag
+-- â€žFr 17.07.â€œ fÃ¼r einen Festivaltag
 create function public.day_label(c uuid, d int) returns text
 language sql stable security definer set search_path = public as $$
   select case when fest_start is null then 'Tag ' || (d + 1)
@@ -886,7 +891,7 @@ $$;
 revoke execute on function public.day_label(uuid, int) from public, anon, authenticated;
 
 create function public.time_range(a time, b time) returns text
-language sql immutable as $$ select to_char(a, 'HH24:MI') || '–' || to_char(b, 'HH24:MI') || ' Uhr' $$;
+language sql immutable as $$ select to_char(a, 'HH24:MI') || 'â€“' || to_char(b, 'HH24:MI') || ' Uhr' $$;
 
 -- ---------- Schichten ----------
 create function public.trg_shift_member_added() returns trigger
@@ -899,7 +904,7 @@ begin
 end $$;
 create trigger shift_member_added after insert on public.shift_members for each row execute function public.trg_shift_member_added();
 
--- Beim Löschen einer ganzen Schicht gibt es nur die eine Meldung „gelöscht“, nicht zusätzlich „herausgenommen“
+-- Beim LÃ¶schen einer ganzen Schicht gibt es nur die eine Meldung â€žgelÃ¶schtâ€œ, nicht zusÃ¤tzlich â€žherausgenommenâ€œ
 create function public.trg_shift_member_removed() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare s shifts;
@@ -918,7 +923,7 @@ declare m uuid;
 begin
   if (old.area, old.day, old.start_time, old.end_time) is distinct from (new.area, new.day, new.start_time, new.end_time) then
     for m in select profile_id from shift_members where shift_id = new.id loop
-      perform public.notify(m, 'Deine Schicht wurde geändert: ' || new.area || ', ' || public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time), 'schichten');
+      perform public.notify(m, 'Deine Schicht wurde geÃ¤ndert: ' || new.area || ', ' || public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time), 'schichten');
     end loop;
   end if;
   return new;
@@ -930,7 +935,7 @@ language plpgsql security definer set search_path = public as $$
 declare m uuid;
 begin
   for m in select profile_id from shift_members where shift_id = old.id loop
-    perform public.notify(m, 'Deine Schicht wurde gelöscht: ' || old.area || ', ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'schichten');
+    perform public.notify(m, 'Deine Schicht wurde gelÃ¶scht: ' || old.area || ', ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'schichten');
   end loop;
   return old;
 end $$;
@@ -945,7 +950,7 @@ begin
     perform public.notify(new.profile_id, 'Du stehst im Timetable: ' || public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time), 'lineup');
     return new;
   elsif tg_op = 'DELETE' then
-    perform public.notify(old.profile_id, 'Dein Slot im Timetable wurde gelöscht: ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'lineup');
+    perform public.notify(old.profile_id, 'Dein Slot im Timetable wurde gelÃ¶scht: ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'lineup');
     return old;
   end if;
   txt := public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time);
@@ -953,7 +958,7 @@ begin
     perform public.notify(old.profile_id, 'Dein Slot im Timetable wurde entfernt: ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'lineup');
     perform public.notify(new.profile_id, 'Du stehst im Timetable: ' || txt, 'lineup');
   elsif (old.day, old.start_time, old.end_time) is distinct from (new.day, new.start_time, new.end_time) then
-    perform public.notify(new.profile_id, 'Dein Slot im Timetable wurde geändert: ' || txt, 'lineup');
+    perform public.notify(new.profile_id, 'Dein Slot im Timetable wurde geÃ¤ndert: ' || txt, 'lineup');
   end if;
   return new;
 end $$;
@@ -973,7 +978,7 @@ begin
   select name into who from profiles where id = new.profile_id;
   if tg_op = 'INSERT' then
     if new.claimed then
-      perform public.notify(t.created_by, who || ' hat die Aufgabe übernommen: ' || t.title, 'aufgaben');
+      perform public.notify(t.created_by, who || ' hat die Aufgabe Ã¼bernommen: ' || t.title, 'aufgaben');
     else
       perform public.notify(new.profile_id, 'Dir wurde eine Aufgabe zugeteilt: ' || t.title, 'aufgaben');
     end if;
@@ -990,7 +995,7 @@ declare m uuid;
 begin
   if tg_op = 'DELETE' then
     for m in select profile_id from task_assignees where task_id = old.id loop
-      perform public.notify(m, 'Eine Aufgabe von dir wurde gelöscht: ' || old.title, 'aufgaben');
+      perform public.notify(m, 'Eine Aufgabe von dir wurde gelÃ¶scht: ' || old.title, 'aufgaben');
     end loop;
     return old;
   end if;
@@ -1000,7 +1005,7 @@ begin
     elsif old.done and not new.done then
       perform public.notify(m, 'Aufgabe ist wieder offen: ' || new.title, 'aufgaben');
     elsif (old.title, old.due_date, old.due_time, old.prio) is distinct from (new.title, new.due_date, new.due_time, new.prio) then
-      perform public.notify(m, 'Aufgabe geändert: ' || new.title, 'aufgaben');
+      perform public.notify(m, 'Aufgabe geÃ¤ndert: ' || new.title, 'aufgaben');
     end if;
   end loop;
   return new;
@@ -1033,3 +1038,176 @@ begin
   return new;
 end $$;
 create trigger access_changed after update of access on public.profiles for each row execute function public.trg_access_changed();
+
+-- ===== 0008_marken_gaeste.sql =====
+-- Festival-Orga: GetrÃ¤nkemarken und Ã¶ffentliche GÃ¤ste-Seite
+
+-- ---------- GetrÃ¤nkemarken ----------
+-- Wie viele Marken jemand fÃ¼rs ganze Festival bekommt: die hÃ¶chste Zahl aus Zugang, Bereichen und persÃ¶nlicher Zahl.
+-- Standardwerte sind Beispiele und lassen sich in den Einstellungen Ã¤ndern.
+alter table public.collectives
+  add column tokens_helfer int not null default 1 check (tokens_helfer between 0 and 20),
+  add column tokens_crew int not null default 1 check (tokens_crew between 0 and 20),
+  add column tokens_admin int not null default 1 check (tokens_admin between 0 and 20),
+  add column guest_text text check (char_length(guest_text) <= 1000),
+  add column guest_packlist text[] not null default '{}';
+grant update (tokens_helfer, tokens_crew, tokens_admin, guest_text, guest_packlist) on public.collectives to authenticated;
+
+alter table public.gewerke add column tokens int not null default 0 check (tokens between 0 and 20);
+update public.gewerke set tokens = 3 where kind = 'djs';
+-- Auch fÃ¼r neu angelegte Kollektive: der Bereich DJs startet mit 3 Marken (Beispielwert)
+create function public.gewerk_default_tokens() returns trigger language plpgsql as $$
+begin
+  if new.kind = 'djs' and new.tokens = 0 then new.tokens := 3; end if;
+  return new;
+end $$;
+create trigger gewerke_default_tokens before insert on public.gewerke for each row execute function public.gewerk_default_tokens();
+
+alter table public.profiles add column tokens_override int check (tokens_override between 0 and 20);
+
+create table public.token_redemptions (
+  id uuid primary key default gen_random_uuid(),
+  collective_id uuid not null references public.collectives on delete cascade,
+  profile_id uuid not null references public.profiles on delete cascade,
+  redeemed_at timestamptz not null default now()
+);
+create index on public.token_redemptions (profile_id);
+alter table public.token_redemptions enable row level security;
+-- Die eigenen EinlÃ¶sungen sieht man selbst, alle sieht die Crew (Protokoll an der Bar). EingelÃ¶st wird nur Ã¼ber redeem_token().
+create policy "EinlÃ¶sungen lesen" on public.token_redemptions
+  for select to authenticated
+  using (profile_id = public.my_profile_id() or (collective_id = public.my_collective() and public.is_lead()));
+
+create function public.token_allowance(p uuid) returns int
+language sql stable security definer set search_path = public as $$
+  select coalesce(pr.tokens_override, greatest(
+    case pr.access when 'admin' then c.tokens_admin when 'crew' then c.tokens_crew else c.tokens_helfer end,
+    coalesce((select max(g.tokens) from gewerk_members gm join gewerke g on g.id = gm.gewerk_id where gm.profile_id = pr.id), 0)))
+  from profiles pr join collectives c on c.id = pr.collective_id where pr.id = p
+$$;
+revoke execute on function public.token_allowance(uuid) from public, anon, authenticated;
+
+create function public.my_tokens() returns table (total int, used int)
+language sql stable security definer set search_path = public as $$
+  select coalesce(public.token_allowance(public.my_profile_id()), 0),
+         (select count(*)::int from token_redemptions where profile_id = public.my_profile_id())
+$$;
+
+-- Eine Marke einlÃ¶sen. Gibt den Zeitpunkt zurÃ¼ck, damit die Bar die Uhr sieht.
+create function public.redeem_token() returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := public.my_profile_id();
+  at timestamptz;
+begin
+  if me is null then raise exception 'Nicht angemeldet'; end if;
+  -- Zwei gleichzeitige Wischer dÃ¼rfen nicht beide durchgehen
+  perform pg_advisory_xact_lock(hashtext(me::text));
+  if (select used from public.my_tokens()) >= (select total from public.my_tokens()) then
+    raise exception 'Du hast keine Marken mehr.';
+  end if;
+  insert into token_redemptions (collective_id, profile_id) values (public.my_collective(), me) returning redeemed_at into at;
+  return at;
+end $$;
+
+-- Crew oder Admin gibt versehentlich eingelÃ¶ste Marke zurÃ¼ck (die zuletzt eingelÃ¶ste)
+create function public.refund_token(p_profile uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  r uuid;
+begin
+  if not public.is_lead() then raise exception 'Nur Crew und Admin dÃ¼rfen das'; end if;
+  select id into r from token_redemptions where profile_id = p_profile and collective_id = public.my_collective() order by redeemed_at desc limit 1;
+  if r is null then raise exception 'Diese Person hat keine Marke eingelÃ¶st'; end if;
+  delete from token_redemptions where id = r;
+  perform public.notify(p_profile, 'Dir wurde eine GetrÃ¤nkemarke zurÃ¼ckgegeben', 'marken');
+end $$;
+
+-- Crew und Admin sehen, wie viele Marken eine Person hat und wie viele schon eingelÃ¶st sind
+create function public.person_tokens(p_profile uuid) returns table (total int, used int)
+language sql stable security definer set search_path = public as $$
+  select public.token_allowance(p_profile), (select count(*)::int from token_redemptions where profile_id = p_profile)
+  where public.is_lead() and exists (select 1 from profiles where id = p_profile and collective_id = public.my_collective())
+$$;
+
+-- PersÃ¶nliche Zahl fÃ¼r eine Person (leer lassen = es gilt Zugang und Bereich)
+create function public.set_tokens(p_profile uuid, p_n int) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Nur der Admin darf das'; end if;
+  update profiles set tokens_override = p_n where id = p_profile and collective_id = public.my_collective();
+end $$;
+
+-- ---------- Timetable: auch Namen ohne Konto ----------
+-- Wer noch kein Konto hat, wird als Name eingetragen. SpÃ¤tere VerknÃ¼pfung mit dem Konto: Slot Ã¤ndern und DJ auswÃ¤hlen.
+alter table public.lineup_slots
+  alter column profile_id drop not null,
+  add column act_name text check (char_length(act_name) <= 60),
+  add column act_genre text check (char_length(act_genre) <= 60),
+  add constraint lineup_slot_hat_name check (profile_id is not null or nullif(trim(act_name), '') is not null);
+
+drop policy "Line-up planen" on public.lineup_slots;
+create policy "Line-up planen" on public.lineup_slots
+  for all to authenticated
+  using (collective_id = public.my_collective() and public.is_lead())
+  with check (
+    collective_id = public.my_collective() and public.is_lead()
+    and (profile_id is null or exists (select 1 from profiles p where p.id = profile_id and p.collective_id = public.my_collective()))
+  );
+
+-- ---------- Ã–ffentliche GÃ¤ste-Seite ----------
+alter table public.folders add column guest_visible boolean not null default false;
+update public.folders set guest_visible = true where name = 'Fotos' and not crew_only;
+alter table public.folders add constraint folders_guest_not_crew check (not (guest_visible and crew_only));
+
+-- Alles, was GÃ¤ste ohne Konto sehen dÃ¼rfen, in einem Aufruf. Nur freigegebene Dinge, keine Konten, keine Orga-Daten.
+create function public.guest_page() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'name', c.name, 'fest_start', c.fest_start, 'fest_days', c.fest_days,
+    'text', c.guest_text, 'packlist', to_jsonb(c.guest_packlist),
+    'fotos', coalesce((select jsonb_agg(jsonb_build_object('name', f.name, 'url', f.url) order by f.sort)
+        from folders f where f.collective_id = c.id and f.guest_visible and not f.crew_only and f.url is not null), '[]'::jsonb),
+    'slots', coalesce((select jsonb_agg(jsonb_build_object('day', s.day, 'start', s.start_time, 'end', s.end_time, 'name', coalesce(nullif(trim(s.act_name), ''), p.act_name, p.name), 'genre', coalesce(s.act_genre, p.act_genre)) order by s.day, s.start_time)
+        from lineup_slots s left join profiles p on p.id = s.profile_id where s.collective_id = c.id), '[]'::jsonb))
+  from collectives c order by c.created_at limit 1
+$$;
+grant execute on function public.guest_page() to anon, authenticated;
+
+
+-- ---------- Aufgaben â€žan alleâ€œ ----------
+-- Eine Aufgabe ohne Bereich sehen alle im Team, solange sie offen ist, und jede:r kann sie Ã¼bernehmen.
+-- Aufgaben fÃ¼r einen Bereich (z. B. Orga oder Aufbau) sehen nur Crew, Admin, ZustÃ¤ndige und Leute aus diesem Bereich.
+drop policy "Aufgaben lesen" on public.tasks;
+create policy "Aufgaben lesen" on public.tasks
+  for select to authenticated
+  using (collective_id = public.my_collective() and (
+    public.is_lead() or public.is_assignee(id)
+    or (not public.has_assignees(id) and (gewerk_id is null or public.in_gewerk(gewerk_id)))
+  ));
+
+create or replace function public.can_see_task(t uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from tasks
+    where id = t and collective_id = public.my_collective()
+      and (
+        public.is_lead()
+        or exists (select 1 from task_assignees where task_id = t and profile_id = public.my_profile_id())
+        or (not exists (select 1 from task_assignees where task_id = t) and (gewerk_id is null or public.in_gewerk(gewerk_id)))
+      )
+  )
+$$;
+
+create or replace function public.claim_task(p_task uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  t tasks;
+begin
+  select * into t from tasks where id = p_task and collective_id = public.my_collective();
+  if not found then raise exception 'Aufgabe nicht gefunden'; end if;
+  if exists (select 1 from task_assignees where task_id = p_task) then raise exception 'Die Aufgabe hat schon jemand'; end if;
+  if not (public.is_lead() or t.gewerk_id is null or public.in_gewerk(t.gewerk_id)) then raise exception 'Die Aufgabe gehÃ¶rt nicht zu deinen Bereichen'; end if;
+  insert into task_assignees (task_id, profile_id, claimed) values (p_task, public.my_profile_id(), true);
+end $$;
+

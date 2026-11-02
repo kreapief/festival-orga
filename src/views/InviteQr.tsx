@@ -22,8 +22,8 @@ export function Qr({ text }: { text: string }) {
   )
 }
 
-export function QrSheet({ code, title, hint, onClose }: { code: string; title: string; hint: string; onClose: () => void }) {
-  const link = appLink('join/' + code)
+export function QrSheet({ code, link: fixed, title, hint, onClose }: { code?: string; link?: string; title: string; hint: string; onClose: () => void }) {
+  const link = fixed ?? appLink('join/' + code)
   // Bildschirm anlassen, solange der Code gezeigt wird (klappt nicht überall, ist dann egal)
   useEffect(() => {
     let lock: WakeLockSentinel | null = null
@@ -35,7 +35,7 @@ export function QrSheet({ code, title, hint, onClose }: { code: string; title: s
       <h2>{title}</h2>
       <p className="muted">{hint}</p>
       <div className="qrbox"><Qr text={link} /></div>
-      <p className="small muted center">Mit der Handykamera scannen. Dann Namen eintippen, fertig.</p>
+      <p className="small muted center">Mit der Handykamera scannen.</p>
       <div className="row end"><button className="btn" onClick={() => copyText(link, 'Link kopiert.')}><Icon name="copy" size={18} />Link kopieren</button>
         <button className="btn primary" onClick={onClose}>Fertig</button></div>
     </Sheet>

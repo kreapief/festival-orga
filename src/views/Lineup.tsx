@@ -35,17 +35,19 @@ export function Lineup() {
         return <section key={day} className="ttday" aria-label={dayLabel(coll, day)}>
           <h2 className="ttdate">{dayHead(day)}</h2>
           {list.map(s => {
-            const p = person(s.profile_id)
-            if (!p) return null
-            const own = p.id === me.id
+            // Ein Slot hat entweder ein Konto (DJ) oder nur einen eingetippten Namen
+            const p = s.profile_id ? person(s.profile_id) : undefined
+            const name = s.act_name?.trim() || (p ? actName(p) : 'Noch offen')
+            const genre = s.act_genre || p?.act_genre
+            const own = !!p && p.id === me.id
             return <div key={s.id} className="ttrow">
               <span className="tttime">{hhmm(s.start_time)}<small> Uhr</small></span>
               <div className={`ttbar ${own ? 'own' : ''}`}>
-                <div className="ttname"><b>{actName(p)}</b>{p.act_genre && <span className="ttgenre">{p.act_genre}</span>}</div>
+                <div className="ttname"><b>{name}</b>{genre && <span className="ttgenre">{genre}</span>}</div>
                 <span className="ttend">bis {hhmm(s.end_time)}</span>
                 {own && <span className="tag role">Du</span>}
                 {(isLead || own) && <span className="ttbtns">
-                  <button className="btn sm" onClick={() => setDj(p)}>DJ-Infos</button>
+                  {p && <button className="btn sm" onClick={() => setDj(p)}>DJ-Infos</button>}
                   {isLead && <button className="btn sm" onClick={() => setSlot(s)}>Ändern</button>}</span>}
               </div>
             </div>
@@ -61,11 +63,16 @@ export function Lineup() {
 function SlotForm({ slot, days, djGewerk, onClose, onSaved }: { slot: Slot | null; days: string[]; djGewerk: string | null; onClose: () => void; onSaved: () => void }) {
   const { me, people, members } = useTeam()
   const djs = people.filter(p => members.some(m => m.gewerk_id === djGewerk && m.profile_id === p.id))
-  const [f, setF] = useState({ day: slot?.day ?? 0, from: hhmm(slot?.start_time ?? '20:00'), to: hhmm(slot?.end_time ?? '21:30'), who: slot?.profile_id ?? '' })
+  // „__name“ heißt: nur ein Name, noch kein Konto
+  const [f, setF] = useState({ day: slot?.day ?? 0, from: hhmm(slot?.start_time ?? '20:00'), to: hhmm(slot?.end_time ?? '21:30'),
+    who: slot ? (slot.profile_id ?? '__name') : '', name: slot?.act_name ?? '', genre: slot?.act_genre ?? '' })
   const set = (p: Partial<typeof f>) => setF(x => ({ ...x, ...p }))
   async function submit(e: FormEvent) {
     e.preventDefault()
-    const data = { day: f.day, start_time: f.from, end_time: f.to, profile_id: f.who }
+    const free = f.who === '__name'
+    if (free && !f.name.trim()) return toast('Bitte einen Namen eintragen.')
+    const data = { day: f.day, start_time: f.from, end_time: f.to, profile_id: free ? null : f.who,
+      act_name: free ? f.name.trim() : null, act_genre: free ? (f.genre.trim() || null) : null }
     const { error } = slot ? await db().from('lineup_slots').update(data).eq('id', slot.id)
       : await db().from('lineup_slots').insert({ ...data, collective_id: me.collective_id })
     if (error) return toast(errorText(error))
@@ -88,8 +95,12 @@ function SlotForm({ slot, days, djGewerk, onClose, onSaved }: { slot: Slot | nul
         </div>
         <div className="field"><label htmlFor="slWho">DJ</label>
           <select id="slWho" required value={f.who} onChange={e => set({ who: e.target.value })}><option value="">Bitte wählen</option>
-            {djs.map(p => <option key={p.id} value={p.id}>{actName(p)}{p.act_genre ? ` · ${p.act_genre}` : ''}</option>)}</select>
-          <span className="hint">Fehlt jemand? Unter Menschen in den Bereich DJs holen.</span></div>
+            {djs.map(p => <option key={p.id} value={p.id}>{actName(p)}{p.act_genre ? ` · ${p.act_genre}` : ''}</option>)}
+            <option value="__name">Anderen Namen eintippen (noch kein Konto)</option></select>
+          <span className="hint">Noch nicht angemeldet? Tipp den Namen einfach ein. Später lässt sich der Slot mit dem Konto verknüpfen.</span></div>
+        {f.who === '__name' && <div className="two">
+          <div className="field"><label htmlFor="slName">Name</label><input id="slName" required maxLength={60} autoFocus placeholder="z. B. DJ Beispiel" value={f.name} onChange={e => set({ name: e.target.value })} /></div>
+          <div className="field"><label htmlFor="slGenre">Musikrichtung</label><input id="slGenre" maxLength={60} placeholder="z. B. Techno" value={f.genre} onChange={e => set({ genre: e.target.value })} /></div></div>}
         <div className="row between">{slot ? <button type="button" className="btn danger" onClick={remove}>Slot löschen</button> : <span />}
           <div className="row"><button type="button" className="btn" onClick={onClose}>Abbrechen</button><button className="btn primary">Speichern</button></div></div>
       </form>

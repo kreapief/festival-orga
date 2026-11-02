@@ -13,9 +13,9 @@ export function useSchedule() {
 
   const reload = useCallback(async () => {
     const [c, s, l, e] = await Promise.all([
-      db().from('collectives').select('id,name,fest_start,fest_days').single(),
+      db().from('collectives').select('id,name,fest_start,fest_days,tokens_helfer,tokens_crew,tokens_admin,guest_text,guest_packlist').single(),
       db().from('shifts').select('id,gewerk_id,area,day,start_time,end_time,need,shift_members(profile_id)').order('day').order('start_time'),
-      db().from('lineup_slots').select('id,day,start_time,end_time,profile_id').order('day').order('start_time'),
+      db().from('lineup_slots').select('id,day,start_time,end_time,profile_id,act_name,act_genre').order('day').order('start_time'),
       db().from('events').select('id,date,time,title').order('date'),
     ])
     const err = c.error ?? s.error ?? l.error ?? e.error
@@ -83,7 +83,7 @@ export function myCommitments(coll: Collective | null, shifts: Shift[], slots: S
     const start = startAt(coll, s.day, s.start_time)
     if (start) out.push({ kind: 'Schicht', title: s.area, day: s.day, from: hhmm(s.start_time), to: hhmm(s.end_time), start })
   }
-  for (const l of slots) if (l.profile_id === me) {
+  for (const l of slots) if (l.profile_id && l.profile_id === me) {
     const start = startAt(coll, l.day, l.start_time)
     if (start) out.push({ kind: 'Auftritt', title: 'Dein Set', day: l.day, from: hhmm(l.start_time), to: hhmm(l.end_time), start })
   }
