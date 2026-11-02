@@ -1,0 +1,24 @@
+name: Datenbank wachhalten
+
+# Supabase pausiert kostenlose Projekte nach einer Woche ohne Nutzung.
+# Diese Aufgabe fragt alle 3 Tage kurz die Datenbank an, damit das nicht passiert.
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  anstupsen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Datenbank anfragen
+        env:
+          URL: ${{ vars.SUPABASE_URL }}
+          KEY: ${{ vars.SUPABASE_KEY }}
+        run: |
+          # invite_info mit einem Fantasie-Code: läuft ohne Anmeldung, liefert nichts zurück, ist aber echte Datenbank-Arbeit
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL/rest/v1/rpc/invite_info" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+            -d '{"p_code":"WACHHALTEN"}')
+          echo "Antwort: $code"
+          test "$code" = "200"
