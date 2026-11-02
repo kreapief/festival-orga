@@ -20,13 +20,36 @@ export function Setup() {
   )
 }
 
+// Aus einem eingefügten Link oder Code die passende Seite machen
+function routeFromInput(text: string): string | null {
+  const t = text.trim()
+  const m = t.match(/#\/(join|wieder)\/([A-Za-z0-9]+)/)
+  if (m) return `${m[1]}/${m[2].toUpperCase()}`
+  const code = t.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+  if (code.length === 16) return `wieder/${code}`
+  if (code.length >= 6 && code.length <= 12) return `join/${code}`
+  return null
+}
+
 export function NoAccess() {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    const r = routeFromInput(text)
+    if (!r) return setError('Das sieht nicht nach einem Einladungslink oder Code aus. Kopier ihn noch mal komplett aus der Nachricht.')
+    go(r)
+  }
   return (
-    <div className="card stack wait">
+    <form className="card stack wait left" onSubmit={submit}>
       <h1>Hallo!</h1>
-      <p className="muted">Du brauchst einen Einladungslink, um reinzukommen. Den bekommst du von der Crew, zum Beispiel in eurer WhatsApp-Gruppe.</p>
-      <p className="note">Du hattest schon einen Zugang und nutzt jetzt ein neues Handy? Frag die Crew nach einem Wiederanmelde-Link.</p>
-    </div>
+      <p className="muted">Du brauchst einen Einladungslink, um reinzukommen. Den bekommst du von der Crew, zum Beispiel in eurer WhatsApp-Gruppe. Tippe auf den Link, oder füge ihn hier ein.</p>
+      <div className="field"><label htmlFor="code">Link oder Code</label>
+        <input id="code" autoComplete="off" autoCapitalize="characters" placeholder="Link oder Code einfügen" value={text} onChange={e => { setText(e.target.value); setError('') }} /></div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <button className="btn primary" disabled={!text.trim()}>Weiter</button>
+      <p className="note">Du hattest schon einen Zugang und nutzt jetzt ein neues Handy? Frag die Crew nach einem Wiederanmelde-Link und füge ihn hier ein.</p>
+    </form>
   )
 }
 
