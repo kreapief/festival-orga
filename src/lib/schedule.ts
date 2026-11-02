@@ -3,7 +3,7 @@ import { db, errorText } from './supabase'
 import { toast } from './ui'
 import type { Collective, Shift, Slot, Termin } from './types'
 
-// Festivaltage, Schichten, Line-up und Termine in einem Rutsch laden
+// Festivaltage, Schichten, Timetable und Termine in einem Rutsch laden
 export function useSchedule() {
   const [coll, setColl] = useState<Collective | null>(null)
   const [shifts, setShifts] = useState<Shift[]>([])

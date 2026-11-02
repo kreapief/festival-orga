@@ -9,7 +9,7 @@ export function useTasks() {
   const [loading, setLoading] = useState(true)
   const reload = useCallback(async () => {
     const { data, error } = await db().from('tasks')
-      .select('id,gewerk_id,title,due_date,due_time,prio,created_by,done,task_assignees(profile_id,claimed,reported_done)')
+      .select('id,gewerk_id,title,due_date,due_time,prio,created_by,done,done_at,task_assignees(profile_id,claimed,reported_done)')
       .order('due_date', { nullsFirst: false })
     if (error) toast(errorText(error))
     else setTasks(data as Task[])

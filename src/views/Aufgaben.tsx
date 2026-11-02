@@ -32,7 +32,7 @@ export function TaskRow({ t, onChange }: { t: Task; onChange: () => void }) {
           {!t.done && reported && <span className="tag ok">✓ Fertig gemeldet{canTick ? ' · bitte abhaken' : ''}</span>}
           <span className={`tag prio ${t.prio}`}><span aria-hidden="true">{PRIO_ICON[t.prio]}</span> {PRIO_LABEL[t.prio]}</span>
           {t.gewerk_id && <span className="tag">{gewerkName(t.gewerk_id)}</span>}
-          {t.due_date && <span>{fmtDate(t.due_date)}{t.due_time ? `, ${t.due_time.slice(0, 5)} Uhr` : ''}</span>}
+          {t.done && t.done_at ? <span>erledigt am {fmtDate(t.done_at.slice(0, 10))}</span> : t.due_date && <span>{fmtDate(t.due_date)}{t.due_time ? `, ${t.due_time.slice(0, 5)} Uhr` : ''}</span>}
         </div>
         <div className="who-box"><span className="who-lbl">Zuständig</span>
           {t.task_assignees.length ? t.task_assignees.map(a => {
@@ -48,7 +48,7 @@ export function TaskRow({ t, onChange }: { t: Task; onChange: () => void }) {
   )
 }
 
-const FILTERS = [['alle', 'Alle'], ['meine', 'Meine'], ['offen', 'Zu erledigen'], ['frei', 'Ohne Person'], ['erledigt', 'Erledigt']] as const
+const FILTERS = [['alle', 'Offen'], ['meine', 'Meine'], ['frei', 'Ohne Person'], ['archiv', 'Archiv']] as const
 type Filter = typeof FILTERS[number][0]
 const ORDER: Record<Prio, number> = { hoch: 0, mittel: 1, niedrig: 2 }
 
@@ -58,12 +58,12 @@ export function Aufgaben() {
   const [filter, setFilter] = useState<Filter>('alle')
   const [creating, setCreating] = useState(false)
 
-  const list = tasks.filter(t =>
-    filter === 'meine' ? t.task_assignees.some(a => a.profile_id === me.id)
-    : filter === 'offen' ? !t.done
-    : filter === 'frei' ? !t.done && !t.task_assignees.length
-    : filter === 'erledigt' ? t.done : true
-  ).sort((a, b) => Number(a.done) - Number(b.done) || ORDER[a.prio] - ORDER[b.prio] || (a.due_date ?? '9').localeCompare(b.due_date ?? '9'))
+  // Erledigte Aufgaben verschwinden aus der Liste und liegen im Archiv, das zuletzt Erledigte oben
+  const archived = tasks.filter(t => t.done)
+  const list = filter === 'archiv'
+    ? [...archived].sort((a, b) => (b.done_at ?? '').localeCompare(a.done_at ?? ''))
+    : tasks.filter(t => !t.done && (filter === 'meine' ? t.task_assignees.some(a => a.profile_id === me.id) : filter === 'frei' ? !t.task_assignees.length : true))
+        .sort((a, b) => ORDER[a.prio] - ORDER[b.prio] || (a.due_date ?? '9').localeCompare(b.due_date ?? '9'))
 
   return <>
     <div className="head">
@@ -71,11 +71,11 @@ export function Aufgaben() {
       {isLead && <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" />Neue Aufgabe</button>}
     </div>
     <div className="chips" role="group" aria-label="Filter">
-      {FILTERS.map(([k, l]) => <button key={k} className="chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>{l}</button>)}
+      {FILTERS.map(([k, l]) => <button key={k} className="chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>{l}{k === 'archiv' && archived.length > 0 ? ` (${archived.length})` : ''}</button>)}
     </div>
     <section className="card">
       {loading ? <p className="muted">Lädt …</p> : list.length ? <div className="list">{list.map(t => <TaskRow key={t.id} t={t} onChange={reload} />)}</div>
-        : <p className="muted">{tasks.length ? 'Keine Aufgaben in diesem Filter.' : isLead ? 'Noch keine Aufgaben. Leg die erste an.' : 'Gerade hast du keine Aufgaben.'}</p>}
+        : <p className="muted">{filter === 'archiv' ? 'Noch nichts im Archiv. Erledigte Aufgaben landen hier.' : tasks.some(t => !t.done) ? 'Keine Aufgaben in diesem Filter.' : isLead ? 'Alles erledigt oder noch nichts angelegt. Leg eine neue Aufgabe an.' : 'Gerade hast du keine offenen Aufgaben.'}</p>}
     </section>
     {creating && <TaskForm onClose={() => setCreating(false)} onSaved={() => { setCreating(false); reload() }} />}
   </>

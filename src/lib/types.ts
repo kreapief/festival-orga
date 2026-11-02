@@ -35,8 +35,14 @@ export type Task = {
   prio: Prio
   created_by: string | null
   done: boolean
+  done_at: string | null
   task_assignees: Assignee[]
 }
+
+export type Message = { id: string; channel: string; profile_id: string; body: string; created_at: string }
+export type RoomInfo = { channel: string; last_body: string | null; last_at: string | null; last_name: string | null; unread: number }
+export type Note = { id: string; body: string; link: string | null; created_at: string; read_at: string | null }
+export type Folder = { id: string; name: string; note: string | null; url: string | null; crew_only: boolean; sort: number }
 
 export type Invite = { id: string; code: string; access: Access; gewerk_id: string | null; active: boolean }
 

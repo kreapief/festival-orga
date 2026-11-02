@@ -24,7 +24,7 @@ export function Hero({ next, later, coll }: { next: Commitment; later: Commitmen
       <div className="hero-title">{next.title} · {relDay(next.start, now)} {next.from}</div>
       <div className="countdown" aria-live="off">{fmtCountdown(ms, gig)}</div>
       <div>{next.from}–{next.to} Uhr · {dayLabel(coll, next.day)}</div>
-      <div className="row"><button className="btn ghost" onClick={() => go(gig ? 'lineup' : 'schichten')}>{gig ? 'Line-up' : 'Schichtplan'}</button></div>
+      <div className="row"><button className="btn ghost" onClick={() => go(gig ? 'lineup' : 'schichten')}>{gig ? 'Timetable' : 'Schichtplan'}</button></div>
       {later.length > 0 && <div className="small hero-later">Danach: {later.map(l => `${l.title} ${relDay(l.start, now)} ${l.from}`).join(' · ')}</div>}
     </section>
   )

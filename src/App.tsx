@@ -34,7 +34,7 @@ export default function App() {
   else if (boot.state === 'loading') page = <div className="wait muted" aria-busy="true">Lädt …</div>
   else if (boot.state === 'error') page = <div className="card stack wait"><h1>Keine Verbindung</h1><p className="error">{boot.msg}</p><button className="btn" onClick={load}>Noch mal versuchen</button></div>
   else if (boot.state === 'out') page = <NoAccess />
-  else page = <TeamProvider me={boot.me} onMeChanged={load}><Shell view={route.view} /></TeamProvider>
+  else page = <TeamProvider me={boot.me} onMeChanged={load}><Shell view={route.view} param={route.param} /></TeamProvider>
 
   return <>{page}<Toaster /></>
 }

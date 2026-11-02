@@ -1,4 +1,4 @@
--- Festival-Orga: komplette Einrichtung (0001 bis 0005). Einmal im SQL-Editor von Supabase ausführen.
+-- Festival-Orga: komplette Einrichtung (0001 bis 0007). Einmal im SQL-Editor von Supabase ausführen.
 
 -- Festival-Orga: Grundgerüst
 -- Anmeldung nur über das Gerät (anonyme Supabase-Anmeldung), verknüpft mit einem Profil.
@@ -705,3 +705,331 @@ begin
   insert into invites (collective_id, code, access) values (c, public.random_code(8), 'helfer');
   return query select i2.access::text, i2.code from invites i2 where i2.collective_id = c order by i2.access;
 end $$;
+
+-- Festival-Orga: Chat-Räume, Ordner-Links (Google Drive) und Archiv für erledigte Aufgaben
+
+-- ---------- Aufgaben: wann erledigt ----------
+alter table public.tasks add column done_at timestamptz;
+update public.tasks set done_at = now() where done and done_at is null;
+
+create function public.tasks_done_at() returns trigger
+language plpgsql as $$
+begin
+  if new.done and not coalesce(old.done, false) then new.done_at := now();
+  elsif not new.done then new.done_at := null;
+  end if;
+  return new;
+end $$;
+create trigger tasks_done_at before update of done on public.tasks
+  for each row execute function public.tasks_done_at();
+
+-- ---------- Chat ----------
+-- Ein Raum ist entweder 'helfer' (alle im Team) oder die ID eines Bereichs.
+create table public.messages (
+  id uuid primary key default gen_random_uuid(),
+  collective_id uuid not null references public.collectives on delete cascade,
+  channel text not null,
+  profile_id uuid not null references public.profiles on delete cascade,
+  body text not null check (char_length(trim(body)) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+create index on public.messages (collective_id, channel, created_at desc);
+
+create table public.chat_reads (
+  profile_id uuid not null references public.profiles on delete cascade,
+  channel text not null,
+  read_at timestamptz not null default 'epoch',
+  primary key (profile_id, channel)
+);
+
+-- Darf ich in diesem Raum lesen und schreiben? Helfer:innen-Raum: alle. Bereichs-Raum: Crew und Admin immer, sonst wer im Bereich ist.
+create function public.can_chat(ch text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.my_profile_id() is not null and (
+    ch = 'helfer'
+    or exists (
+      select 1 from gewerke g
+      where g.id::text = ch and g.collective_id = public.my_collective()
+        and (public.is_lead() or public.in_gewerk(g.id))
+    )
+  )
+$$;
+
+alter table public.messages enable row level security;
+alter table public.chat_reads enable row level security;
+
+create policy "Nachrichten lesen" on public.messages
+  for select to authenticated using (collective_id = public.my_collective() and public.can_chat(channel));
+create policy "Nachrichten schreiben" on public.messages
+  for insert to authenticated
+  with check (collective_id = public.my_collective() and profile_id = public.my_profile_id() and public.can_chat(channel));
+-- Löschen: die eigene Nachricht oder der Admin
+create policy "Nachrichten löschen" on public.messages
+  for delete to authenticated
+  using (collective_id = public.my_collective() and (profile_id = public.my_profile_id() or public.is_admin()));
+-- chat_reads: kein direkter Zugriff, nur über mark_read()
+
+-- Übersicht für die Raumliste: alle meine Räume mit letzter Nachricht und Zahl der ungelesenen
+create function public.chat_overview()
+returns table (channel text, last_body text, last_at timestamptz, last_name text, unread bigint)
+language sql stable security definer set search_path = public as $$
+  with mine as (
+    select 'helfer'::text as channel where public.my_profile_id() is not null
+    union all
+    select g.id::text from gewerke g
+    where g.collective_id = public.my_collective() and (public.is_lead() or public.in_gewerk(g.id))
+  )
+  select m.channel, l.body, l.created_at, p.name,
+    (select count(*) from messages x
+      where x.collective_id = public.my_collective() and x.channel = m.channel and x.profile_id <> public.my_profile_id()
+        and x.created_at > coalesce((select r.read_at from chat_reads r where r.profile_id = public.my_profile_id() and r.channel = m.channel), 'epoch'))
+  from mine m
+  left join lateral (
+    select x.body, x.created_at, x.profile_id from messages x
+    where x.collective_id = public.my_collective() and x.channel = m.channel order by x.created_at desc limit 1
+  ) l on true
+  left join profiles p on p.id = l.profile_id
+$$;
+
+-- Als gelesen markieren, bis zur zuletzt gesehenen Nachricht
+create function public.mark_read(ch text, upto timestamptz) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.can_chat(ch) then raise exception 'Diesen Raum darfst du nicht lesen'; end if;
+  insert into chat_reads (profile_id, channel, read_at) values (public.my_profile_id(), ch, upto)
+  on conflict (profile_id, channel) do update set read_at = greatest(chat_reads.read_at, excluded.read_at);
+end $$;
+
+-- ---------- Ordner-Links (Google Drive) ----------
+create table public.folders (
+  id uuid primary key default gen_random_uuid(),
+  collective_id uuid not null references public.collectives on delete cascade,
+  name text not null check (char_length(trim(name)) between 1 and 60),
+  note text check (char_length(note) <= 200),
+  url text check (url is null or url ~* '^https://[^ ]+$'),
+  crew_only boolean not null default false,
+  sort int not null default 0
+);
+create index on public.folders (collective_id);
+alter table public.folders enable row level security;
+
+-- Ordner nur für die Crew sieht die Helfer:in gar nicht erst (auch nicht den Link)
+create policy "Ordner lesen" on public.folders
+  for select to authenticated using (collective_id = public.my_collective() and (not crew_only or public.is_lead()));
+create policy "Ordner verwalten" on public.folders
+  for all to authenticated
+  using (collective_id = public.my_collective() and public.is_admin())
+  with check (collective_id = public.my_collective() and public.is_admin());
+
+-- Jedes Kollektiv bekommt einen Fotoordner (für alle) und einen Orga-Ordner (nur Crew)
+create function public.seed_folders() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into folders (collective_id, name, note, crew_only, sort) values
+    (new.id, 'Fotos', 'Alle Fotos fürs Team', false, 0),
+    (new.id, 'Orga-Ordner', 'Logos, Designs, Verträge und alles Wichtige', true, 1);
+  return new;
+end $$;
+create trigger collectives_seed_folders after insert on public.collectives
+  for each row execute function public.seed_folders();
+
+insert into public.folders (collective_id, name, note, crew_only, sort)
+select c.id, f.name, f.note, f.crew_only, f.sort from public.collectives c,
+  (values ('Fotos', 'Alle Fotos fürs Team', false, 0), ('Orga-Ordner', 'Logos, Designs, Verträge und alles Wichtige', true, 1)) as f(name, note, crew_only, sort)
+where not exists (select 1 from public.folders x where x.collective_id = c.id);
+
+-- Festival-Orga: Mitteilungen. Wer etwas betrifft, bekommt automatisch eine Nachricht in der App.
+-- Die Mitteilungen entstehen in der Datenbank selbst (Auslöser), nicht in der Oberfläche.
+-- So entgehen sie niemandem, egal wer die Änderung auslöst.
+
+create table public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  collective_id uuid not null references public.collectives on delete cascade,
+  profile_id uuid not null references public.profiles on delete cascade,
+  body text not null,
+  link text,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+create index on public.notifications (profile_id, created_at desc);
+alter table public.notifications enable row level security;
+
+create policy "eigene Mitteilungen lesen" on public.notifications
+  for select to authenticated using (profile_id = public.my_profile_id());
+create policy "eigene Mitteilungen löschen" on public.notifications
+  for delete to authenticated using (profile_id = public.my_profile_id());
+create policy "eigene als gelesen markieren" on public.notifications
+  for update to authenticated using (profile_id = public.my_profile_id()) with check (profile_id = public.my_profile_id());
+revoke update on public.notifications from authenticated;
+grant update (read_at) on public.notifications to authenticated;
+
+-- Eine Mitteilung anlegen. Wer die Änderung selbst auslöst, bekommt keine.
+create function public.notify(p_profile uuid, p_body text, p_link text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  c uuid;
+begin
+  if p_profile is null or p_profile = public.my_profile_id() then return; end if;
+  select collective_id into c from profiles where id = p_profile;
+  if c is null then return; end if;
+  insert into notifications (collective_id, profile_id, body, link) values (c, p_profile, p_body, p_link);
+end $$;
+revoke execute on function public.notify(uuid, text, text) from public, anon, authenticated;
+
+-- „Fr 17.07.“ für einen Festivaltag
+create function public.day_label(c uuid, d int) returns text
+language sql stable security definer set search_path = public as $$
+  select case when fest_start is null then 'Tag ' || (d + 1)
+    else (array['So','Mo','Di','Mi','Do','Fr','Sa'])[extract(dow from fest_start + d)::int + 1] || ' ' || to_char(fest_start + d, 'DD.MM.') end
+  from collectives where id = c
+$$;
+revoke execute on function public.day_label(uuid, int) from public, anon, authenticated;
+
+create function public.time_range(a time, b time) returns text
+language sql immutable as $$ select to_char(a, 'HH24:MI') || '–' || to_char(b, 'HH24:MI') || ' Uhr' $$;
+
+-- ---------- Schichten ----------
+create function public.trg_shift_member_added() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare s shifts;
+begin
+  select * into s from shifts where id = new.shift_id;
+  perform public.notify(new.profile_id, 'Du bist eingeteilt: ' || s.area || ', ' || public.day_label(s.collective_id, s.day) || ' ' || public.time_range(s.start_time, s.end_time), 'schichten');
+  return new;
+end $$;
+create trigger shift_member_added after insert on public.shift_members for each row execute function public.trg_shift_member_added();
+
+-- Beim Löschen einer ganzen Schicht gibt es nur die eine Meldung „gelöscht“, nicht zusätzlich „herausgenommen“
+create function public.trg_shift_member_removed() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare s shifts;
+begin
+  select * into s from shifts where id = old.shift_id;
+  if found then
+    perform public.notify(old.profile_id, 'Du wurdest aus der Schicht genommen: ' || s.area || ', ' || public.day_label(s.collective_id, s.day) || ' ' || public.time_range(s.start_time, s.end_time), 'schichten');
+  end if;
+  return old;
+end $$;
+create trigger shift_member_removed after delete on public.shift_members for each row execute function public.trg_shift_member_removed();
+
+create function public.trg_shift_changed() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare m uuid;
+begin
+  if (old.area, old.day, old.start_time, old.end_time) is distinct from (new.area, new.day, new.start_time, new.end_time) then
+    for m in select profile_id from shift_members where shift_id = new.id loop
+      perform public.notify(m, 'Deine Schicht wurde geändert: ' || new.area || ', ' || public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time), 'schichten');
+    end loop;
+  end if;
+  return new;
+end $$;
+create trigger shift_changed after update on public.shifts for each row execute function public.trg_shift_changed();
+
+create function public.trg_shift_deleted() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare m uuid;
+begin
+  for m in select profile_id from shift_members where shift_id = old.id loop
+    perform public.notify(m, 'Deine Schicht wurde gelöscht: ' || old.area || ', ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'schichten');
+  end loop;
+  return old;
+end $$;
+create trigger shift_deleted before delete on public.shifts for each row execute function public.trg_shift_deleted();
+
+-- ---------- Timetable ----------
+create function public.trg_slot_changed() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare txt text;
+begin
+  if tg_op = 'INSERT' then
+    perform public.notify(new.profile_id, 'Du stehst im Timetable: ' || public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time), 'lineup');
+    return new;
+  elsif tg_op = 'DELETE' then
+    perform public.notify(old.profile_id, 'Dein Slot im Timetable wurde gelöscht: ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'lineup');
+    return old;
+  end if;
+  txt := public.day_label(new.collective_id, new.day) || ' ' || public.time_range(new.start_time, new.end_time);
+  if old.profile_id is distinct from new.profile_id then
+    perform public.notify(old.profile_id, 'Dein Slot im Timetable wurde entfernt: ' || public.day_label(old.collective_id, old.day) || ' ' || public.time_range(old.start_time, old.end_time), 'lineup');
+    perform public.notify(new.profile_id, 'Du stehst im Timetable: ' || txt, 'lineup');
+  elsif (old.day, old.start_time, old.end_time) is distinct from (new.day, new.start_time, new.end_time) then
+    perform public.notify(new.profile_id, 'Dein Slot im Timetable wurde geändert: ' || txt, 'lineup');
+  end if;
+  return new;
+end $$;
+create trigger slot_changed after insert or update or delete on public.lineup_slots for each row execute function public.trg_slot_changed();
+
+-- ---------- Aufgaben ----------
+create function public.trg_assignee_changed() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare t tasks; who text;
+begin
+  if tg_op = 'DELETE' then
+    select * into t from tasks where id = old.task_id;
+    if found then perform public.notify(old.profile_id, 'Du wurdest bei der Aufgabe ausgetragen: ' || t.title, 'aufgaben'); end if;
+    return old;
+  end if;
+  select * into t from tasks where id = new.task_id;
+  select name into who from profiles where id = new.profile_id;
+  if tg_op = 'INSERT' then
+    if new.claimed then
+      perform public.notify(t.created_by, who || ' hat die Aufgabe übernommen: ' || t.title, 'aufgaben');
+    else
+      perform public.notify(new.profile_id, 'Dir wurde eine Aufgabe zugeteilt: ' || t.title, 'aufgaben');
+    end if;
+  elsif new.reported_done and not old.reported_done then
+    perform public.notify(t.created_by, who || ' hat die Aufgabe als fertig gemeldet: ' || t.title, 'aufgaben');
+  end if;
+  return new;
+end $$;
+create trigger assignee_changed after insert or update or delete on public.task_assignees for each row execute function public.trg_assignee_changed();
+
+create function public.trg_task_changed() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare m uuid;
+begin
+  if tg_op = 'DELETE' then
+    for m in select profile_id from task_assignees where task_id = old.id loop
+      perform public.notify(m, 'Eine Aufgabe von dir wurde gelöscht: ' || old.title, 'aufgaben');
+    end loop;
+    return old;
+  end if;
+  for m in select profile_id from task_assignees where task_id = new.id loop
+    if new.done and not old.done then
+      perform public.notify(m, 'Aufgabe als erledigt abgehakt: ' || new.title, 'aufgaben');
+    elsif old.done and not new.done then
+      perform public.notify(m, 'Aufgabe ist wieder offen: ' || new.title, 'aufgaben');
+    elsif (old.title, old.due_date, old.due_time, old.prio) is distinct from (new.title, new.due_date, new.due_time, new.prio) then
+      perform public.notify(m, 'Aufgabe geändert: ' || new.title, 'aufgaben');
+    end if;
+  end loop;
+  return new;
+end $$;
+create trigger task_changed after update on public.tasks for each row execute function public.trg_task_changed();
+create trigger task_deleted before delete on public.tasks for each row execute function public.trg_task_changed();
+
+-- ---------- Team und Zugang ----------
+create function public.trg_team_changed() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare g gewerke;
+begin
+  if tg_op = 'INSERT' then
+    select * into g from gewerke where id = new.gewerk_id;
+    perform public.notify(new.profile_id, 'Du bist jetzt im Team ' || g.name, 'bereiche/' || g.id);
+    return new;
+  end if;
+  select * into g from gewerke where id = old.gewerk_id;
+  if found then perform public.notify(old.profile_id, 'Du bist nicht mehr im Team ' || g.name, 'bereiche'); end if;
+  return old;
+end $$;
+create trigger team_changed after insert or delete on public.gewerk_members for each row execute function public.trg_team_changed();
+
+create function public.trg_access_changed() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if old.access is distinct from new.access then
+    perform public.notify(new.id, 'Dein Zugang ist jetzt: ' || case new.access when 'admin' then 'Admin' when 'crew' then 'Crew' else 'Helfer:in' end, 'profil');
+  end if;
+  return new;
+end $$;
+create trigger access_changed after update of access on public.profiles for each row execute function public.trg_access_changed();

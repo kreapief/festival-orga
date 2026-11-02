@@ -191,5 +191,134 @@ await expectError(() => as(JO, () => q("insert into public.events (collective_id
 await as(U(2), () => q("insert into public.events (collective_id, date, title) values ($1, '2026-11-20', 'Orga-Treffen')", [admin.collective_id]))
 ok((await as(JO, () => q('select title from public.events'))).length === 1, 'Crew legt Termin an, alle sehen ihn')
 
+console.log('Aufgaben-Archiv')
+await as(U(2), () => q('update public.tasks set done = true where id = $1', [tLou]))
+ok((await q('select done_at from public.tasks where id = $1', [tLou]))[0].done_at !== null, 'Beim Abhaken wird das Datum gemerkt')
+await as(U(2), () => q('update public.tasks set done = false where id = $1', [tLou]))
+ok((await q('select done_at from public.tasks where id = $1', [tLou]))[0].done_at === null, 'Beim Wieder-Öffnen wird es gelöscht')
+
+console.log('Chat')
+const say = (uid, ch, body, asProfile) => as(uid, () => q('insert into public.messages (collective_id, channel, profile_id, body) values ($1, $2, ' + (asProfile ? '$4' : 'public.my_profile_id()') + ', $3)', asProfile ? [admin.collective_id, ch, body, asProfile] : [admin.collective_id, ch, body]))
+await say(JO, 'helfer', 'Hallo alle')
+ok(true, 'Helfer:in schreibt im Helfer:innen-Raum')
+await say(U(4), g.Barschichten, 'Bar-Nachricht')
+await say(JO, g.DJs, 'DJ-Nachricht')
+await expectError(() => say(JO, g.Barschichten, 'darf ich nicht'), 'Helfer:in schreibt nicht in fremdem Bereichs-Raum')
+await expectError(() => say(JO, 'helfer', 'als Admin getarnt', admin.id), 'Niemand schreibt im Namen anderer')
+await expectError(() => say(JO, 'gibt-es-nicht', 'x'), 'Unbekannte Räume gibt es nicht')
+const chans = async uid => (await as(uid, () => q('select distinct channel from public.messages order by channel'))).map(r => r.channel)
+const cJo = await chans(JO), cLou = await chans(U(4))
+ok(cJo.length === 2 && cJo.every(c => c === 'helfer' || c === g.DJs), 'Helfer:in liest nur Helfer:innen-Raum und eigene Bereiche')
+ok(cLou.includes(g.Barschichten) && !cLou.includes(g.DJs), 'Bar-Helfer:in liest die Bar, aber nicht die DJs')
+await say(U(2), g.Aufbau, 'Crew schreibt auch in fremdem Bereich')
+ok((await chans(U(2))).length === 4, 'Crew liest und schreibt in jedem Raum')
+const ov = async uid => Object.fromEntries((await as(uid, () => q('select * from public.chat_overview()'))).map(r => [r.channel, r]))
+const ovLou = await ov(U(4))
+ok(Object.keys(ovLou).length === 2 && ovLou.helfer.unread == 1 && ovLou[g.Barschichten].unread == 0, 'Raumliste: eigene Räume, ungelesen ohne eigene Nachrichten')
+ok(ovLou.helfer.last_name === 'Jo Neu' && ovLou.helfer.last_body === 'Hallo alle', 'Raumliste zeigt letzte Nachricht mit Namen')
+ok(Object.keys(await ov(U(1))).length === 13, 'Admin sieht alle 13 Räume')
+await as(U(4), () => q('select public.mark_read($1, now())', ['helfer']))
+ok((await ov(U(4))).helfer.unread == 0, 'Als gelesen markieren setzt die Zahl auf 0')
+await say(JO, 'helfer', 'Noch eine')
+ok((await ov(U(4))).helfer.unread == 1, 'Eine neue Nachricht zählt wieder')
+await expectError(() => as(U(4), () => q('select public.mark_read($1, now())', [g.DJs])), 'Fremde Räume lassen sich nicht als gelesen markieren')
+await as(JO, () => q("delete from public.messages where body = 'Noch eine'"))
+ok((await q("select 1 from public.messages where body = 'Noch eine'")).length === 0, 'Eigene Nachricht löschen geht')
+await as(U(4), () => q("delete from public.messages where body = 'Hallo alle'"))
+ok((await q("select 1 from public.messages where body = 'Hallo alle'")).length === 1, 'Fremde Nachricht löschen geht nicht')
+await as(U(1), () => q("delete from public.messages where body = 'Hallo alle'"))
+ok((await q("select 1 from public.messages where body = 'Hallo alle'")).length === 0, 'Admin löscht jede Nachricht')
+
+console.log('Ordner (Drive-Links)')
+const names = async uid => (await as(uid, () => q('select name from public.folders order by sort'))).map(r => r.name).join(', ')
+ok(await names(JO) === 'Fotos', 'Helfer:in sieht nur den Fotoordner')
+ok(await names(U(2)) === 'Fotos, Orga-Ordner', 'Crew sieht Foto- und Orga-Ordner')
+await as(U(2), () => q("update public.folders set url = 'https://drive.google.com/x' where name = 'Fotos'"))
+ok((await q("select url from public.folders where name = 'Fotos'"))[0].url === null, 'Crew kann Ordner-Links nicht ändern')
+await as(U(1), () => q("update public.folders set url = 'https://drive.google.com/drive/folders/abc' where name = 'Orga-Ordner'"))
+ok((await q("select url from public.folders where name = 'Orga-Ordner'"))[0].url?.startsWith('https://'), 'Admin trägt den Link ein')
+ok(!(await as(JO, () => q('select url from public.folders'))).some(r => r.url?.includes('abc')), 'Der Orga-Link bleibt vor Helfer:innen verborgen')
+await expectError(() => as(U(1), () => q("update public.folders set url = 'http://unsicher.de' where name = 'Fotos'")), 'Nur sichere https-Links werden angenommen')
+await expectError(() => as(U(1), () => q("update public.folders set url = 'javascript:alert(1)' where name = 'Fotos'")), 'Keine Skript-Links')
+await q("select * from public.create_collective('Zweit-Kollektiv')")
+ok((await q("select count(*) n from public.folders f join public.collectives c on c.id = f.collective_id where c.name = 'Zweit-Kollektiv'"))[0].n == 2, 'Neue Kollektive bekommen automatisch beide Ordner')
+
+console.log('Mitteilungen')
+const notes = async uid => (await as(uid, () => q('select body, link, read_at from public.notifications order by created_at'))).map(r => r)
+const lastBodies = async (uid, n = 20) => (await notes(uid)).map(r => r.body).slice(-n)
+await q("delete from public.notifications")
+// Schicht: Crew teilt Lou ein
+const nSh = (await as(U(2), () => q('insert into public.shifts (collective_id, gewerk_id, area, day, start_time, end_time, need) values ($1, $2, $3, 1, $4, $5, 2) returning id', [admin.collective_id, g.Barschichten, 'Bar Nacht', '22:00', '23:59'])))[0].id
+await as(U(2), () => q('insert into public.shift_members values ($1, $2)', [nShHelper(), barHelfer.id]))
+function nShHelper() { return nSh }
+let b = await lastBodies(U(4))
+ok(b.length === 1 && b[0].startsWith('Du bist eingeteilt: Bar Nacht, Sa 17.07. 22:00–23:59 Uhr'), 'Eingeteilt: Meldung mit Tag und Uhrzeit (' + b[0] + ')')
+ok((await notes(U(4)))[0].link === 'schichten', 'Die Meldung führt zu den Schichten')
+// Selbst eintragen: keine Meldung an sich selbst
+await as(JO, () => q('select public.join_shift($1)', [nSh]))
+ok((await lastBodies(JO)).length === 0, 'Wer sich selbst einträgt, bekommt keine Meldung')
+// Ändern: alle in der Schicht bekommen eine Meldung
+await as(U(2), () => q("update public.shifts set start_time = '21:00' where id = $1", [nSh]))
+ok((await lastBodies(U(4))).at(-1)?.startsWith('Deine Schicht wurde geändert: Bar Nacht'), 'Geänderte Schicht: Meldung an Eingeteilte')
+ok((await lastBodies(JO)).at(-1)?.startsWith('Deine Schicht wurde geändert'), 'Auch wer sich selbst eingetragen hat, erfährt von der Änderung')
+await as(U(2), () => q("update public.shifts set need = 5 where id = $1", [nSh]))
+ok((await lastBodies(U(4))).length === 2, 'Unwichtige Änderung (Personenzahl) löst keine Meldung aus')
+// Herausnehmen
+await as(U(2), () => q('delete from public.shift_members where shift_id = $1 and profile_id = $2', [nSh, barHelfer.id]))
+ok((await lastBodies(U(4))).at(-1)?.startsWith('Du wurdest aus der Schicht genommen'), 'Herausgenommen: Meldung')
+// Löschen: genau eine Meldung, keine doppelte
+const before = (await notes(JO)).length
+await as(U(2), () => q('delete from public.shifts where id = $1', [nSh]))
+const afterJo = (await lastBodies(JO)).slice(before)
+ok(afterJo.length === 1 && afterJo[0].startsWith('Deine Schicht wurde gelöscht'), 'Gelöschte Schicht: genau eine Meldung (' + afterJo.join(' | ') + ')')
+
+// Timetable
+await q("delete from public.notifications")
+const slot = (await as(U(2), () => q("insert into public.lineup_slots (collective_id, day, start_time, end_time, profile_id) values ($1, 2, '20:00', '21:30', $2) returning id", [admin.collective_id, helfer.id])))[0].id
+ok((await lastBodies(JO)).at(-1)?.startsWith('Du stehst im Timetable: So 18.07. 20:00–21:30 Uhr'), 'Neuer Slot: Meldung an den DJ')
+await as(U(2), () => q("update public.lineup_slots set start_time = '20:30' where id = $1", [slot]))
+ok((await lastBodies(JO)).at(-1)?.startsWith('Dein Slot im Timetable wurde geändert'), 'Slot verschoben: Meldung')
+await as(U(2), () => q('delete from public.lineup_slots where id = $1', [slot]))
+ok((await lastBodies(JO)).at(-1)?.startsWith('Dein Slot im Timetable wurde gelöscht'), 'Slot gelöscht: Meldung')
+
+// Aufgaben
+await q("delete from public.notifications")
+const t1 = await mk(U(2), 'Mitteilungs-Aufgabe', g.Barschichten, [barHelfer.id])
+ok((await lastBodies(U(4))).at(-1) === 'Dir wurde eine Aufgabe zugeteilt: Mitteilungs-Aufgabe', 'Aufgabe zugeteilt: Meldung')
+await as(U(4), () => q('select public.report_task_done($1)', [t1]))
+ok((await lastBodies(U(2))).at(-1) === 'Lou Bar hat die Aufgabe als fertig gemeldet: Mitteilungs-Aufgabe', 'Fertig gemeldet: Meldung an die Ersteller:in')
+await as(U(2), () => q('update public.tasks set done = true where id = $1', [t1]))
+ok((await lastBodies(U(4))).at(-1) === 'Aufgabe als erledigt abgehakt: Mitteilungs-Aufgabe', 'Abgehakt: Meldung an die Zuständigen')
+const open = await mk(U(2), 'Offene Mitteilungs-Aufgabe', g.Barschichten)
+await as(U(4), () => q('select public.claim_task($1)', [open]))
+ok((await lastBodies(U(2))).at(-1) === 'Lou Bar hat die Aufgabe übernommen: Offene Mitteilungs-Aufgabe', 'Übernommen: Meldung an die Ersteller:in')
+await as(U(2), () => q('delete from public.tasks where id = $1', [open]))
+ok((await lastBodies(U(4))).at(-1) === 'Eine Aufgabe von dir wurde gelöscht: Offene Mitteilungs-Aufgabe', 'Aufgabe gelöscht: genau eine Meldung')
+ok((await lastBodies(U(4))).filter(x => x.includes('Offene Mitteilungs-Aufgabe')).length === 1, 'Beim Löschen keine zusätzliche „ausgetragen“-Meldung')
+
+// Team und Zugang
+await q("delete from public.notifications")
+await as(U(1), () => q("select public.set_access($1, 'crew')", [barHelfer.id]))
+const lb = await lastBodies(U(4))
+ok(lb.includes('Dein Zugang ist jetzt: Crew') && lb.some(x => x.startsWith('Du bist jetzt im Team Orga')), 'Zugang geändert: Meldung, und die Gruppe Orga')
+await as(U(1), () => q("select public.set_access($1, 'helfer')", [barHelfer.id]))
+await as(U(1), () => q('delete from public.gewerk_members where gewerk_id = $1 and profile_id = $2', [g.Orga, barHelfer.id]))
+
+// Datenschutz: nur die eigenen
+const mine = await as(U(2), () => q('select profile_id from public.notifications'))
+ok(mine.every(r => r.profile_id === crew.id), 'Man sieht nur die eigenen Mitteilungen')
+await expectError(() => as(U(2), () => q("insert into public.notifications (collective_id, profile_id, body) values ($1, $2, 'Fälschung')", [admin.collective_id, crew.id])), 'Niemand kann sich Mitteilungen selbst anlegen')
+const own = (await as(U(2), () => q('select id from public.notifications limit 1')))[0]
+if (own) {
+  await as(U(2), () => q('update public.notifications set read_at = now() where id = $1', [own.id]))
+  ok((await q('select read_at from public.notifications where id = $1', [own.id]))[0].read_at !== null, 'Als gelesen markieren geht')
+  await expectError(() => as(U(2), () => q("update public.notifications set body = 'umgeschrieben' where id = $1", [own.id])), 'Der Text lässt sich nicht ändern')
+}
+const foreign = (await q('select id from public.notifications where profile_id <> $1 limit 1', [crew.id]))[0]
+if (foreign) {
+  await as(U(2), () => q('update public.notifications set read_at = now() where id = $1', [foreign.id]))
+  ok((await q('select read_at from public.notifications where id = $1', [foreign.id]))[0].read_at === null, 'Fremde Mitteilungen lassen sich nicht abhaken')
+}
+
 console.log(`\n${pass} bestanden, ${fail} fehlgeschlagen`)
 process.exit(fail ? 1 : 0)

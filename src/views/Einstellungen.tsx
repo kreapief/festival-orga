@@ -23,7 +23,7 @@ export function Einstellungen() {
       <div className="field"><label htmlFor="cName">Name des Kollektivs</label><input id="cName" required maxLength={80} value={f.name} onChange={e => setF({ ...f, name: e.target.value })} /></div>
       <div className="two">
         <div className="field"><label htmlFor="cStart">Erster Festivaltag</label><input id="cStart" type="date" value={f.start} onChange={e => setF({ ...f, start: e.target.value })} />
-          <span className="hint">Damit stehen Schichten und Line-up mit Datum im Kalender, und der Countdown läuft.</span></div>
+          <span className="hint">Damit stehen Schichten und Timetable mit Datum im Kalender, und der Countdown läuft.</span></div>
         <div className="field"><label htmlFor="cDays">Wie viele Tage?</label><input id="cDays" type="number" min={1} max={14} required value={f.days} onChange={e => setF({ ...f, days: +e.target.value })} /></div>
       </div>
       <button className="btn primary" disabled={!coll}>Speichern</button>

@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react'
 export type Route =
   | { name: 'join'; code: string }
   | { name: 'wieder'; token: string }
-  | { name: 'app'; view: string }
+  | { name: 'app'; view: string; param?: string }
 
 export function parseRoute(): Route {
   const [a, b] = location.hash.replace(/^#\/?/, '').split('/')
   if (a === 'join' && b) return { name: 'join', code: decodeURIComponent(b) }
   if (a === 'wieder' && b) return { name: 'wieder', token: decodeURIComponent(b) }
-  return { name: 'app', view: a || 'heute' }
+  return { name: 'app', view: a || 'heute', param: b ? decodeURIComponent(b) : undefined }
 }
 
 export function useRoute(): Route {

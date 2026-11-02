@@ -60,10 +60,10 @@ export function Schichten() {
             {isLead ? <div className="row tags">{s.shift_members.map(m => <span key={m.profile_id} className={`tag ${m.profile_id === me.id ? 'role' : ''}`}>{person(m.profile_id)?.name}</span>)}</div>
               : mine && <div className="row tags"><span className="tag role">Du bist dabei</span></div>}
           </div>
-          {canPlan(s) ? <button className="btn sm" onClick={() => setAssign(s)}>Zuteilen</button>
-            : mine ? <button className="btn sm" onClick={async () => { if (await run(db().from('shift_members').delete().eq('shift_id', s.id).eq('profile_id', me.id), 'Du bist ausgetragen.')) reload() }}>Austragen</button>
+          {(() => { const self = mine ? <button className="btn sm" onClick={async () => { if (await run(db().from('shift_members').delete().eq('shift_id', s.id).eq('profile_id', me.id), 'Du bist ausgetragen.')) reload() }}>Austragen</button>
             : full ? <span className="tag">Voll</span>
-            : <button className="btn sm primary" onClick={async () => { if (await run(db().rpc('join_shift', { p_shift: s.id }), `Eingetragen: ${s.area}, ${hhmm(s.start_time)} Uhr.`)) reload() }}>Eintragen</button>}
+            : <button className="btn sm primary" onClick={async () => { if (await run(db().rpc('join_shift', { p_shift: s.id }), `Eingetragen: ${s.area}, ${hhmm(s.start_time)} Uhr.`)) reload() }}>Eintragen</button>
+            return canPlan(s) ? <div className="stack tight">{self}<button className="btn sm" onClick={() => setAssign(s)}>Zuteilen</button></div> : self })()}
         </div>
       })}</section>
     )}

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useTeam } from '../lib/team'
 import { db, errorText } from '../lib/supabase'
-import { dayCount, dayLabel, hhmm, myCommitments, useSchedule } from '../lib/schedule'
-import { Icon, Sheet, initials, toast } from '../lib/ui'
+import { dayCount, dayDate, dayLabel, hhmm, myCommitments, useSchedule } from '../lib/schedule'
+import { Icon, Sheet, toast } from '../lib/ui'
 import type { Profile, Slot } from '../lib/types'
 import { Hero } from './Heute'
 
@@ -16,34 +16,42 @@ export function Lineup() {
   const djGewerk = gewerke.find(g => g.kind === 'djs')?.id ?? null
   const amDj = inGewerk(djGewerk)
   const up = myCommitments(coll, shifts, slots, me.id).filter(c => c.kind === 'Auftritt' && c.start.getTime() > Date.now() - 3600e3)
+  const dayHead = (day: number) => {
+    const d = dayDate(coll, day)
+    return d ? `${new Date(d + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long' })} – ${new Date(d + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}` : `Tag ${day + 1}`
+  }
 
   return <>
     <div className="head">
-      <div><h1>Line-up</h1><p className="muted">{amDj && !isLead ? 'Wann du spielst und wer vor und nach dir dran ist.' : 'Wer spielt wann. Das Line-up planen Admin und Crew.'}</p></div>
+      <div><h1>Timetable</h1><p className="muted">{amDj && !isLead ? 'Wann du spielst und wer vor und nach dir dran ist.' : 'Wer wann spielt. Den Timetable planen Admin und Crew.'}</p></div>
       <div className="row">{amDj && <button className="btn" onClick={() => setDj(me)}>Meine DJ-Infos</button>}
         {isLead && <button className="btn primary" onClick={() => setSlot('new')}><Icon name="plus" />Slot hinzufügen</button>}</div>
     </div>
     {up.length > 0 && <Hero next={up[0]} later={up.slice(1)} coll={coll} />}
-    {loading ? <p className="muted">Lädt …</p> : !slots.length ? <section className="card"><p className="muted">Noch keine Slots im Line-up.</p></section>
-      : Array.from({ length: dayCount(coll) }, (_, day) => {
+    {loading ? <p className="muted">Lädt …</p> : !slots.length ? <section className="card"><p className="muted">Noch keine Slots im Timetable.</p></section>
+      : <div className="timetable">{Array.from({ length: dayCount(coll) }, (_, day) => {
         const list = slots.filter(s => s.day === day)
         if (!list.length) return null
-        return <section key={day} className="card"><h2 className="dayhead">{dayLabel(coll, day)}</h2>
+        return <section key={day} className="ttday" aria-label={dayLabel(coll, day)}>
+          <h2 className="ttdate">{dayHead(day)}</h2>
           {list.map(s => {
             const p = person(s.profile_id)
             if (!p) return null
             const own = p.id === me.id
-            return <div key={s.id} className={`act ${own ? 'me' : ''}`}>
-              <div className="time">{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
-              <span className="actimg" aria-hidden="true">{p.photo_url ? <img src={p.photo_url} alt="" /> : initials(actName(p))}</span>
-              <div className="grow"><b className="actname">{actName(p)}</b>{own && <> <span className="tag role">Das bist du</span></>}
-                <div>{p.act_genre ? <span className="tag genre">{p.act_genre}</span> : (isLead || own) && <span className="small muted">Musikrichtung fehlt noch</span>}</div></div>
-              <div className="row">{(isLead || own) && <button className="btn sm" onClick={() => setDj(p)}>DJ-Infos</button>}
-                {isLead && <button className="btn sm" onClick={() => setSlot(s)}>Slot ändern</button>}</div>
+            return <div key={s.id} className="ttrow">
+              <span className="tttime">{hhmm(s.start_time)}<small> Uhr</small></span>
+              <div className={`ttbar ${own ? 'own' : ''}`}>
+                <div className="ttname"><b>{actName(p)}</b>{p.act_genre && <span className="ttgenre">{p.act_genre}</span>}</div>
+                <span className="ttend">bis {hhmm(s.end_time)}</span>
+                {own && <span className="tag role">Du</span>}
+                {(isLead || own) && <span className="ttbtns">
+                  <button className="btn sm" onClick={() => setDj(p)}>DJ-Infos</button>
+                  {isLead && <button className="btn sm" onClick={() => setSlot(s)}>Ändern</button>}</span>}
+              </div>
             </div>
           })}</section>
-      })}
-    {!coll?.fest_start && me.access === 'admin' && <p className="note">Tipp: Trag in den Einstellungen den ersten Festivaltag ein. Dann stehen Line-up und Schichten mit Datum im Kalender.</p>}
+      })}</div>}
+    {!coll?.fest_start && me.access === 'admin' && <p className="note">Tipp: Trag in den Einstellungen den ersten Festivaltag ein. Dann stehen Timetable und Schichten mit Datum im Kalender.</p>}
     {slot && <SlotForm slot={slot === 'new' ? null : slot} days={Array.from({ length: dayCount(coll) }, (_, i) => dayLabel(coll, i))} djGewerk={djGewerk}
       onClose={() => setSlot(null)} onSaved={() => { setSlot(null); reload() }} />}
     {dj && <DjForm p={dj} onClose={() => setDj(null)} />}
@@ -103,8 +111,8 @@ function DjForm({ p, onClose }: { p: Profile; onClose: () => void }) {
     <Sheet title="DJ-Infos" onClose={onClose}>
       <form className="stack" onSubmit={submit}>
         <h2>DJ-Infos{p.id === me.id ? '' : ` · ${p.name}`}</h2>
-        <p className="small muted">So erscheint der Slot im Line-up.</p>
-        <div className="field"><label htmlFor="djName">Name im Line-up</label><input id="djName" maxLength={60} placeholder={p.name} value={name} onChange={e => setName(e.target.value)} />
+        <p className="small muted">So erscheint der Slot im Timetable.</p>
+        <div className="field"><label htmlFor="djName">Name im Timetable</label><input id="djName" maxLength={60} placeholder={p.name} value={name} onChange={e => setName(e.target.value)} />
           <span className="hint">Leer lassen, dann steht der normale Name da.</span></div>
         <div className="field"><label htmlFor="djGenre">Musikrichtung</label><input id="djGenre" maxLength={60} placeholder="z. B. Techno, House, Drum & Bass" value={genre} onChange={e => setGenre(e.target.value)} /></div>
         <div className="row end"><button type="button" className="btn" onClick={onClose}>Abbrechen</button><button className="btn primary">Speichern</button></div>

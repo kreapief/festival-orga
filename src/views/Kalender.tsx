@@ -10,7 +10,7 @@ type Kind = 'Termin' | 'Aufgabe' | 'Schicht' | 'Auftritt'
 type Item = { date: string; time: string; title: string; kind: Kind; sub?: string; mine: boolean; prio?: Prio }
 const SYM: Record<Kind, string> = { Termin: '●', Aufgabe: '☐', Schicht: '◷', Auftritt: '♪' }
 const CLS: Record<Kind, string> = { Termin: '', Aufgabe: 'task', Schicht: 'shift', Auftritt: 'gig' }
-const FILTERS = [['alle', 'Alles'], ['meine', 'Nur meine'], ['schichten', 'Schichten'], ['lineup', 'Line-up']] as const
+const FILTERS = [['alle', 'Alles'], ['meine', 'Nur meine'], ['schichten', 'Schichten'], ['lineup', 'Timetable']] as const
 type Filter = typeof FILTERS[number][0]
 
 export function Kalender() {
@@ -79,7 +79,7 @@ export function Kalender() {
   const moveMonth = (n: number) => { const d = new Date(y, m - 1 + n, 1); setMonth(isoDate(d).slice(0, 7)) }
 
   return <>
-    <div className="head"><div><h1>Kalender</h1><p className="muted">Termine, Fristen, Schichten und Line-up. Tipp auf einen Tag für die Tagesansicht.</p></div>{add}</div>
+    <div className="head"><div><h1>Kalender</h1><p className="muted">Termine, Fristen, Schichten und Timetable. Tipp auf einen Tag für die Tagesansicht.</p></div>{add}</div>
     <section className="card stack">
       <div className="calhead"><h2>{first.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</h2>
         <button className="btn sm" onClick={() => setMonth(today.slice(0, 7))}>Heute</button>
