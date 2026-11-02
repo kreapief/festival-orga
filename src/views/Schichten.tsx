@@ -53,7 +53,7 @@ export function Schichten() {
       <section className="card">{today.map(s => {
         const mine = s.shift_members.some(m => m.profile_id === me.id)
         const full = s.shift_members.length >= s.need
-        return <div key={s.id} className="shift">
+        return <div key={s.id} className="shiftrow">
           <div className="time">{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
           <div className="grow"><b>{s.area}</b>
             <div className="row small muted"><div className={`bar ${full ? 'full' : ''}`}><i style={{ width: `${Math.min(100, s.shift_members.length / s.need * 100)}%` }} /></div>{s.shift_members.length} von {s.need} besetzt</div>

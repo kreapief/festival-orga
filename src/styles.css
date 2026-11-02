@@ -138,10 +138,10 @@ input, select, textarea { background: var(--surface); border: 1px solid var(--li
 .plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px }
 .pslot { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: .95rem }
 .pslot:nth-child(2) { border-top: 0 }
-.pslot .time, .shift .time, .act .time { font-variant-numeric: tabular-nums; font-weight: 700 }
+.pslot .time, .shiftrow .time, .act .time { font-variant-numeric: tabular-nums; font-weight: 700 }
 .meName { background: var(--accent-soft); color: var(--accent); font-weight: 700; border-radius: 4px; padding: 0 4px }
-.shift { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line) }
-.shift:first-child { border-top: 0 }
+.shiftrow { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line) }
+.shiftrow:first-child { border-top: 0 }
 .bar { width: 120px; height: 8px; border-radius: 99px; background: var(--sunk); overflow: hidden }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px }
 .bar.full i { background: var(--lo) }
@@ -171,6 +171,8 @@ input, select, textarea { background: var(--surface); border: 1px solid var(--li
 /* Kalender */
 .calhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 .calhead h2 { flex: 1; min-width: 140px }
+.calhead.daynav { flex-wrap: nowrap }
+.daynav h2 { min-width: 0; font-size: 1.05rem }
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px }
 .wd { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); text-align: center }
 .cday { min-height: 96px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 6px; text-align: left; display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow: hidden }
@@ -222,8 +224,8 @@ input, select, textarea { background: var(--surface); border: 1px solid var(--li
     padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) }
   .bottom button { flex: 1; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .75rem; padding: 6px 2px; min-height: 56px; border-radius: 10px; color: var(--muted) }
   .bottom button[aria-current="page"] { color: var(--accent); font-weight: 700; background: var(--accent-soft) }
-  .shift { grid-template-columns: minmax(0, 1fr) auto }
-  .shift .time { grid-column: 1 / -1 }
+  .shiftrow { grid-template-columns: minmax(0, 1fr) auto }
+  .shiftrow .time { grid-column: 1 / -1 }
   .act { grid-template-columns: 64px minmax(0, 1fr) }
   .act .time, .act > .row { grid-column: 1 / -1 }
 }

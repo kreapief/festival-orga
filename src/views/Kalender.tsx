@@ -62,7 +62,7 @@ export function Kalender() {
     return <>
       <div className="head"><div><h1>Kalender</h1></div>{add}</div>
       <section className="card stack">
-        <div className="calhead"><button className="btn sm" onClick={() => { setMonth(day.slice(0, 7)); setDay(null) }}>‹ Monat</button>
+        <div className="calhead daynav"><button className="btn sm" onClick={() => { setMonth(day.slice(0, 7)); setDay(null) }}>‹ Monat</button>
           <h2>{new Date(day + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
           <button className="btn icon" aria-label="Vorheriger Tag" onClick={() => shiftDay(-1)}>‹</button>
           <button className="btn icon" aria-label="Nächster Tag" onClick={() => shiftDay(1)}>›</button></div>
