@@ -34,7 +34,7 @@ const q = async (sql, params) => (await db.query(sql, params)).rows
 const expectError = async (fn, msg) => { try { await fn(); ok(false, msg) } catch (e) { ok(true, `${msg} (${e.message.slice(0, 70)})`) } }
 
 const U = n => `00000000-0000-0000-0000-00000000000${n}`
-for (let i = 1; i <= 7; i++) await db.query('insert into auth.users values ($1)', [U(i)])
+for (let i = 1; i <= 9; i++) await db.query('insert into auth.users values ($1)', [U(i)])
 
 console.log('Einrichtung')
 const codes = Object.fromEntries((await q("select * from public.create_collective('Testkollektiv')")).map(r => [r.art, r.code]))
@@ -52,6 +52,7 @@ ok(crew.access === 'crew', 'Crew-Link macht zu Crew')
 const helfer = (await as(U(3), () => q('select * from public.join_with_code($1, $2)', [codes.helfer, 'Jo Helfer'])))[0]
 ok(helfer.access === 'helfer', 'Helfer:innen-Link macht zu Helfer:in')
 await expectError(() => as(U(3), () => q('select * from public.join_with_code($1, $2)', [codes.helfer, 'Doppelt'])), 'Gerät kann nicht zweimal beitreten')
+await expectError(() => as(U(9), () => q('select * from public.join_with_code($1, $2)', [codes.helfer, ' jo HELFER '])), 'Gleicher Name (auch anders geschrieben) wird abgelehnt')
 await expectError(() => as(U(4), () => q('select * from public.join_with_code($1, $2)', ['FALSCH12', 'X'])), 'Falscher Code wird abgelehnt')
 
 const g = Object.fromEntries((await q('select name, id from public.gewerke')).map(r => [r.name, r.id]))
@@ -405,6 +406,11 @@ ok((await as(null, () => q('select * from public.invites'))).length === 0, 'Ohne
 ok(!JSON.stringify(g1).includes('user_id') && !JSON.stringify(g1).includes(admin.id), 'Die Gäste-Seite enthält keine Konto-Kennungen')
 await as(U(2), () => q("update public.collectives set guest_text = 'Gehackt'"))
 ok((await gp()).text === 'Willkommen!', 'Crew kann den Gäste-Text nicht ändern')
+
+console.log('Namen')
+const jo2 = (await as(U(9), () => q('select * from public.join_with_code($1, $2)', [codes.helfer, 'Jo H.'])))[0]
+ok(jo2.name === 'Jo H.', 'Mit Zusatz geht derselbe Vorname')
+await expectError(() => as(U(9), () => q("update public.profiles set name = 'alex admin' where user_id = $1", [U(9)])), 'Umbenennen auf einen vergebenen Namen geht nicht')
 
 console.log(`\n${pass} bestanden, ${fail} fehlgeschlagen`)
 process.exit(fail ? 1 : 0)

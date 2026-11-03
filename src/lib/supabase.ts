@@ -22,5 +22,6 @@ export function errorText(e: unknown): string {
   const msg = (e as { message?: string })?.message ?? String(e)
   if (msg.includes('Anonymous sign-ins are disabled')) return 'Die Anmeldung übers Gerät ist in Supabase noch nicht eingeschaltet.'
   if (msg.includes('Failed to fetch')) return 'Keine Verbindung. Prüf dein Internet und versuch es noch mal.'
+  if (msg.includes('profiles_name_eindeutig')) return 'Diesen Namen gibt es schon. Schreib noch deinen Nachnamen oder einen Buchstaben dazu, zum Beispiel „Lisa M.“.'
   return msg
 }

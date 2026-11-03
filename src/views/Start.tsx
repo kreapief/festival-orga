@@ -98,7 +98,7 @@ export function Join({ code, me, onDone }: { code: string; me: Profile | null; o
   return (
     <form className="card stack wait left" onSubmit={submit}>
       <h1>Willkommen{info ? ` bei ${info.kollektiv}` : ''}!</h1>
-      <p className="muted">Du wurdest {als || '…'} eingeladen. Sag uns nur, wie du heißt. Ein Passwort oder eine E-Mail brauchst du nicht: Dieses Handy bleibt angemeldet.</p>
+      <p className="muted">Du wurdest {als || '…'} eingeladen. Sag uns nur, wie du heißt. Gibt es deinen Vornamen schon, schreib noch den Nachnamen oder einen Buchstaben dazu, zum Beispiel „Lisa M.“. Ein Passwort oder eine E-Mail brauchst du nicht: Dieses Handy bleibt angemeldet.</p>
       <div className="field"><label htmlFor="jName">Dein Name</label>
         <input id="jName" required maxLength={60} autoComplete="name" placeholder="Vorname Nachname" value={name} onChange={e => setName(e.target.value)} /></div>
       {error && <p className="error" role="alert">{error}</p>}
