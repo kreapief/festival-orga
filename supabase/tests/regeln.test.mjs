@@ -412,5 +412,12 @@ const jo2 = (await as(U(9), () => q('select * from public.join_with_code($1, $2)
 ok(jo2.name === 'Jo H.', 'Mit Zusatz geht derselbe Vorname')
 await expectError(() => as(U(9), () => q("update public.profiles set name = 'alex admin' where user_id = $1", [U(9)])), 'Umbenennen auf einen vergebenen Namen geht nicht')
 
+console.log('Wachhalten')
+const w1 = await as(null, () => q('select public.wachhalten() as t'))
+const w2 = await as(null, () => q('select public.wachhalten() as t'))
+ok(w1[0].t && w2[0].t, 'Wachhalten schreibt auch ohne Anmeldung')
+ok(Number((await q('select anzahl from public.wachhalten'))[0].anzahl) === 2, 'Wachhalten zählt mit')
+ok((await as(null, () => q('select * from public.wachhalten'))).length === 0, 'Die Tabelle selbst ist von außen nicht lesbar')
+
 console.log(`\n${pass} bestanden, ${fail} fehlgeschlagen`)
 process.exit(fail ? 1 : 0)

@@ -1,24 +1,47 @@
 name: Datenbank wachhalten
 
-# Supabase pausiert kostenlose Projekte nach einer Woche ohne Nutzung.
-# Diese Aufgabe fragt alle 3 Tage kurz die Datenbank an, damit das nicht passiert.
+# Supabase pausiert kostenlose Projekte nach einer Woche ohne Datenbank-Aktivität.
+# Diese Aufgabe schreibt jeden Tag eine Zeile in die Datenbank, damit das nicht passiert.
+# GitHub schaltet geplante Aufgaben nach 60 Tagen ohne Änderung im Repository ab.
+# Darum legt die Aufgabe am Monatsersten einen kleinen Zeitstempel ins Repository.
 on:
   schedule:
-    - cron: '17 6 */3 * *'
+    - cron: '17 6 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   anstupsen:
     runs-on: ubuntu-latest
     steps:
-      - name: Datenbank anfragen
+      - name: Datenbank beschreiben
         env:
           URL: ${{ vars.SUPABASE_URL }}
           KEY: ${{ vars.SUPABASE_KEY }}
         run: |
-          # invite_info mit einem Fantasie-Code: läuft ohne Anmeldung, liefert nichts zurück, ist aber echte Datenbank-Arbeit
-          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL/rest/v1/rpc/invite_info" \
-            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-            -d '{"p_code":"WACHHALTEN"}')
-          echo "Antwort: $code"
-          test "$code" = "200"
+          # Bis zu 3 Versuche, falls das Projekt gerade aufwacht
+          for i in 1 2 3; do
+            code=$(curl -s -m 30 -o antwort.txt -w "%{http_code}" -X POST "$URL/rest/v1/rpc/wachhalten" \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+            echo "Versuch $i, Antwort: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 30
+          done
+          cat antwort.txt | head -c 300
+          exit 1
+
+      - name: Zeitstempel im Repository (nur am Monatsersten)
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          if [ "$(date -u +%d)" = "01" ]; then
+            git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" repo
+            cd repo
+            date -u +"%Y-%m-%d" > .github/zuletzt-wachgehalten.txt
+            git config user.name "wachhalten"
+            git config user.email "wachhalten@users.noreply.github.com"
+            git add .github/zuletzt-wachgehalten.txt
+            git commit -m "Wachhalten: Zeitstempel"
+            git push
+          fi
