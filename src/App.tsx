@@ -18,8 +18,15 @@ export default function App() {
   const load = useCallback(async () => {
     if (!supabase) return
     try {
-      const { data: { session } } = await db().auth.getSession()
-      if (!session) return setBoot({ state: 'out' })
+      const { data: { session }, error: sessionError } = await db().auth.getSession()
+      // Ohne Verbindung kann die Sitzung nicht erneuert werden. Das heißt nicht, dass man abgemeldet ist.
+      if (sessionError) throw sessionError
+      if (!session) {
+        let saved = false
+        try { saved = !!localStorage.getItem('festival-orga-auth') } catch { /* Speicher gesperrt */ }
+        if (saved) throw new Error('Failed to fetch')
+        return setBoot({ state: 'out' })
+      }
       const { data, error } = await db().from('profiles').select('*').eq('user_id', session.user.id).maybeSingle()
       if (error) throw error
       setBoot(data ? { state: 'in', me: data } : { state: 'out' })
@@ -27,6 +34,14 @@ export default function App() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  // Das Gerät soll angemeldet bleiben: Browser bitten, den Speicher nicht aufzuräumen
+  useEffect(() => { try { void navigator.storage?.persist?.() } catch { /* nicht verfügbar */ } }, [])
+  // Bei fehlender Verbindung von selbst wieder versuchen
+  useEffect(() => {
+    if (boot.state !== 'error') return
+    const t = setTimeout(load, 8000)
+    return () => clearTimeout(t)
+  }, [boot, load])
 
   let page
   if (!supabase) page = <Setup />
